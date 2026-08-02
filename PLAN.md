@@ -49,6 +49,28 @@ Goal: make `feynman` a globally invocable CLI on this machine, and prove both pr
       whether to keep in-repo or reference env var only).
 - [ ] Update README Quick Start to reflect the working global-install flow.
 
+## Phase: Full TUI (next checkpoint / success criterion)
+
+Goal: replace the bare readline REPL with a full-fledged terminal UI like opencode / Claude Code,
+built on Ink (React for CLIs). Server stays as-is for M1; the SSE event contract is upgraded
+additively for tool/usage/cancel fidelity. Tickets tracked on GitHub (repo `Skywalker1080/feynman`,
+issues #1–#9, all labelled `ready-for-agent`):
+
+- [ ] **#1 TUI shell (M1)** — Ink full-screen layout, prompt editor (multi-line, history, Ctrl+R),
+      slash autocomplete, streamed text, theme tokens, non-TTY fallback.
+- [ ] **#2 Server event-contract upgrade** — correlation ids, `step-start`/`status`/`usage`/`cancelled`
+      events, cancel endpoint, kill for `run_terminal`. Backwards compatible.
+- [ ] **#3 ToolCards (M2)** — collapsible tool cards w/ spinner/expand/diff; parallel-call correlation.
+- [ ] **#4 StatusBar live usage (M2)** — live tokens/cost, step N/max, elapsed, provider/model.
+- [ ] **#5 Cancel (M2)** — Ctrl+C aborts generation; second Ctrl+C exits; kill hung tool runs.
+- [ ] **#6 SessionPicker (M3)** — interactive fuzzy `/resume` list from SQLite.
+- [ ] **#7 Optional permission gate (M3)** — y/n/always before destructive tools, default off.
+- [ ] **#8 Plain mode (M3)** — `feynman --plain` + non-TTY auto-fallback for CI/scripts.
+- [ ] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
+
+Ordering: #1 and #2 run first (no blockers, parallelizable); #3–#5 depend on both; #6–#8 on #1;
+#9 on #3 + #4.
+
 ---
 
 > New work should be added below under the right phase (or a new phase) and confirmed with the owner
