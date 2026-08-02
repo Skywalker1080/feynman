@@ -40,7 +40,10 @@ Goal: make `feynman` a globally invocable CLI on this machine, and prove both pr
 
 ## Phase: Repo hygiene & handoff (next)
 
-- [ ] `git init` the repo and make an initial commit (repo is not a git repo yet).
+- [x] `git init` the repo and make an initial commit (repo is now a local git repo with a baseline
+      commit; no remote configured).
+- [x] AGENT.md hard rule added: commit every change locally as a decision logbook (`git log` = decision
+      history), no remote.
 - [ ] Confirm `.env` secret handling (OpenRouter key already in `.env` + global config — decide
       whether to keep in-repo or reference env var only).
 - [ ] Update README Quick Start to reflect the working global-install flow.
