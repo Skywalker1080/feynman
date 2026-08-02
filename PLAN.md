@@ -58,6 +58,7 @@ issues #1–#9, all labelled `ready-for-agent`):
 
 - [ ] **#1 TUI shell (M1)** — Ink full-screen layout, prompt editor (multi-line, history, Ctrl+R),
       slash autocomplete, streamed text, theme tokens, non-TTY fallback.
+      *(built 2026-08-02 — 45 client tests + build + typecheck green; awaiting interactive TTY run)*.
 - [ ] **#2 Server event-contract upgrade** — correlation ids, `step-start`/`status`/`usage`/`cancelled`
       events, cancel endpoint, kill for `run_terminal`. Backwards compatible.
 - [ ] **#3 ToolCards (M2)** — collapsible tool cards w/ spinner/expand/diff; parallel-call correlation.

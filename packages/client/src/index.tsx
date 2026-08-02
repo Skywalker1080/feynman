@@ -1,22 +1,19 @@
+import { render } from 'ink';
 import readline from 'readline';
 import { ServerManager } from './server-manager';
 import { ApiClient } from './api';
 import { StreamRenderer } from './render';
+import { App } from './ui/App';
+import { requestedPlain, shouldUseTUI } from './ui/tty';
 import { handleResumeCommand } from './commands/resume';
 import { handleNewCommand } from './commands/new';
 import { handleSkillCommand } from './commands/skill';
 
-async function main(): Promise<void> {
+async function runPlain(api: ApiClient, initialSessionId: string, cwd: string): Promise<void> {
   console.log('\x1b[1m\x1b[34m⚛ Feynman Terminal Agent v0.1.0\x1b[0m');
-
-  const serverManager = new ServerManager();
-  await serverManager.ensureServerRunning();
-
-  const api = new ApiClient(serverManager.baseUrl);
   const renderer = new StreamRenderer();
 
-  // Create initial session for current working directory
-  let currentSessionId = (await api.createSession(process.cwd())).sessionId;
+  let currentSessionId = initialSessionId;
   console.log(`Session active: \x1b[33m${currentSessionId}\x1b[0m`);
   console.log('Type your message or use commands (\x1b[36m/resume <id>\x1b[0m, \x1b[36m/new\x1b[0m, \x1b[36m/skill <name>\x1b[0m, \x1b[36m/exit\x1b[0m)\n');
 
@@ -50,7 +47,7 @@ async function main(): Promise<void> {
     }
 
     if (input === '/new') {
-      currentSessionId = await handleNewCommand(api, process.cwd());
+      currentSessionId = await handleNewCommand(api, cwd);
       rl.prompt();
       return;
     }
@@ -64,7 +61,6 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Normal message to agent
     try {
       await api.sendMessage(currentSessionId, input, (ev) => renderer.renderEvent(ev));
     } catch (err: unknown) {
@@ -73,6 +69,23 @@ async function main(): Promise<void> {
 
     rl.prompt();
   });
+}
+
+async function main(): Promise<void> {
+  const plain = requestedPlain(process.argv);
+  const useTui = shouldUseTUI({ plain });
+
+  const serverManager = new ServerManager(undefined, undefined, { quiet: useTui });
+  const api = new ApiClient(serverManager.baseUrl);
+
+  if (useTui) {
+    render(<App api={api} serverManager={serverManager} cwd={process.cwd()} />);
+    return;
+  }
+
+  await serverManager.ensureServerRunning();
+  const { sessionId } = await api.createSession(process.cwd());
+  await runPlain(api, sessionId, process.cwd());
 }
 
 main().catch((err: unknown) => {

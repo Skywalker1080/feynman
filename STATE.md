@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-02 (success criterion #2 verified — fresh kill/restart cycle from unrelated project dir)
+**Last updated:** 2026-08-02 (client rebuilt as ESM Ink TUI — M1 shell done, interactive TTY check pending)
 
 ---
 
@@ -49,6 +49,8 @@ Vercel AI SDK.
 | Global config | ✅ `~/.feynman/config.json` created with OpenRouter key/provider + LM Studio base URL |
 | Session persistence | ✅ Sessions logged to SQLite (`~/.feynman/sessions.db`) |
 | v1 scope doc | ✅ `docs/terminal-coding-agent-v1-scope.md` — all v1 success criteria implemented |
+| **TUI shell (M1, ticket #1)** | ✅ **Built** — Ink 7 + React 19 full-screen TUI (header/transcript/editor/statusbar), multi-line prompt editor (Enter submit, Shift+Enter newline, ↑/↓ history, Ctrl+R search), slash autocomplete, theme tokens w/ `NO_COLOR`, non-TTY/`--plain` fallback. **Interactive TTY run pending owner verification** |
+| Client package | ⚠️ Rebuilt as **ESM** (`"type": "module"`) — Ink 7 is ESM-only; CJS bundling impossible (top-level await). `eventsource-parser`/Ink/React resolve from `node_modules` at runtime |
 
 ### Verified end-to-end (2026-08-02)
 

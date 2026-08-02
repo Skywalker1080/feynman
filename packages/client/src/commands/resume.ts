@@ -4,7 +4,7 @@ import type { StreamRenderer } from '../render';
 export async function handleResumeCommand(
   chatId: string,
   api: ApiClient,
-  renderer: StreamRenderer,
+  _renderer: StreamRenderer,
 ): Promise<string> {
   try {
     const { session, messages } = await api.getSession(chatId);

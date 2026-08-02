@@ -19,6 +19,7 @@
     "llm"
   ],
   "main": "./dist/index.js",
+  "type": "module",
   "bin": {
     "feynman": "./dist/index.js"
   },
@@ -32,14 +33,19 @@
     "dev": "npx tsup --watch",
     "typecheck": "npx tsc --noEmit",
     "lint": "npx eslint src",
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
     "clean": "npx rimraf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@feynman/types": "*",
-    "eventsource-parser": "^1.1.2"
+    "eventsource-parser": "^1.1.2",
+    "ink": "^7.1.1",
+    "react": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^22.5.1",
+    "@types/react": "^19.2.18",
     "rimraf": "^6.0.1",
     "tsup": "^8.2.4",
     "typescript": "^5.5.4"
