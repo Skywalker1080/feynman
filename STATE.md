@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-02 (success criterion #2 verified — fresh kill/restart cycle from unrelated project dir)
 
 ---
 
@@ -57,7 +57,11 @@ Vercel AI SDK.
   project dir).
 - Client auto-spawned the server, created a session bound to that cwd, and streamed a real model
   response from OpenRouter.
-- Proves: **global keyword works on any project dir + server auto-start + OpenRouter connected**.
+- **Fresh kill/restart cycle verified** from `C:\Users\prana\AppData\Local\Temp\opencode\fresh-project`
+  with the server stopped: client re-spawned the server, bound the session to the new cwd, executed
+  `list_dir` + `read_file` tools, and returned a correct answer.
+- Proves: **global keyword works on any project dir + server auto-start/restart + OpenRouter connected
+  + tool loop runs**.
 
 > Remaining caveat: LM Studio was confirmed working by the owner while the LM Studio app was running.
 > The API port observed was `41343` (not the default `1234` in config) — confirm the live port next
@@ -85,8 +89,8 @@ Vercel AI SDK.
 
 - `~/.feynman/config.json` now carries the OpenRouter key so the CLI works from **any** cwd (the repo
   `.env` alone only worked when launched from `C:\Projects\feynman`).
-- The repo is **not** a git repository yet (`git` reports no `.git`) — first `git init` is still
-  pending (in PLAN).
+- The repo **is** a local git repo (initialized 2026-08-02, no remote) — `git log` is the project's
+  decision logbook per the AGENT.md hard rule.
 - LM Studio API port was observed as `41343`, while the default config points at `1234` — confirm the
   correct port when LM Studio is running and update `~/.feynman/config.json` if needed. LM Studio
   provider path confirmed working by owner.

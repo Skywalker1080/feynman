@@ -15,7 +15,7 @@ machine, powered by LM Studio **and** OpenRouter.
 
 - [x] **LM Studio + OpenRouter both connect and work** — both provider paths produce a working agent
   response (LM Studio local path and OpenRouter cloud path verified).
-- [ ] **`feynman` keyword starts the CLI + server in a project dir** — running `feynman` from any
+- [x] **`feynman` keyword starts the CLI + server in a project dir** — running `feynman` from any
   project directory in a terminal starts the Feynman server and the agent CLI bound to that
   directory.
 - [ ] **Fresh install from scratch works** — on a clean machine/dir, `feynman` + `feynman-server`
@@ -36,7 +36,8 @@ Goal: make `feynman` a globally invocable CLI on this machine, and prove both pr
 - [x] Verify LM Studio path (confirmed by owner — both provider paths work).
 - [x] Verify `feynman` starts the server + CLI from a project dir (done: server auto-spawned from
       `sample-project`).
-- [ ] Re-verify `feynman` works after a fresh server kill/restart cycle from an unrelated project dir.
+- [x] Re-verify `feynman` after a fresh server kill/restart cycle from an unrelated project dir
+      (done: server killed, re-launched from `fresh-project`, tools executed).
 
 ## Phase: Repo hygiene & handoff (next)
 
