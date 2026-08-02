@@ -28,11 +28,11 @@ Rules:
 5. **Ask before expanding the plan:** if new work appears that isn't in `PLAN.md`, propose it there
    and confirm with the owner before adding.
 
-6. **Commit every change to git (HARD RULE):** after every edit/task completes, commit locally —
-   **no remote repo**. The repo itself is the project's **decision logbook**: each commit records a
-   decision we made and the state change it produced. Rules:
-   - Commit **locally only** — never configure or push to a remote.
+6. **Commit every change to git (HARD RULE):** after every edit/task completes, commit it. The repo
+   is the project's **decision logbook**: each commit records a decision we made and the state change
+   it produced. The repo is backed by `origin` (https://github.com/Skywalker1080/feynman.git). Rules:
    - Commit **promptly** — right after a unit of work finishes, not in batches at the end.
+   - Push to `origin` after committing when the tree is clean and a batch of work is coherent.
    - Commit message format (decision-log style):
      ```
      <area>: <what changed>
@@ -105,3 +105,19 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
