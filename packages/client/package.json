@@ -1,0 +1,50 @@
+{
+  "name": "feynman",
+  "version": "0.1.0",
+  "description": "Local, terminal-based coding agent CLI",
+  "license": "MIT",
+  "author": "Pranav",
+  "homepage": "https://github.com/feynman-agent/feynman#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feynman-agent/feynman.git",
+    "directory": "packages/client"
+  },
+  "keywords": [
+    "feynman",
+    "coding-agent",
+    "cli",
+    "terminal",
+    "ai",
+    "llm"
+  ],
+  "main": "./dist/index.js",
+  "bin": {
+    "feynman": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npx tsup",
+    "start": "node dist/index.js",
+    "dev": "npx tsup --watch",
+    "typecheck": "npx tsc --noEmit",
+    "lint": "npx eslint src",
+    "clean": "npx rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@feynman/types": "*",
+    "eventsource-parser": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.1",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

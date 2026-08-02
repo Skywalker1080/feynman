@@ -1,0 +1,40 @@
+{
+  "name": "@feynman/types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for the Feynman coding agent",
+  "license": "MIT",
+  "author": "Pranav",
+  "homepage": "https://github.com/feynman-agent/feynman#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feynman-agent/feynman.git",
+    "directory": "packages/types"
+  },
+  "keywords": ["feynman", "coding-agent", "types"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "npx tsup",
+    "dev": "npx tsup --watch",
+    "typecheck": "npx tsc --noEmit",
+    "lint": "npx eslint src",
+    "clean": "npx rimraf dist *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4"
+  }
+}
