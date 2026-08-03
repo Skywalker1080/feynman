@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feynman — Agent Architecture</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11171f; --panel2:#0d141c; --border:#243247;
+    --text:#d7e0ea; --muted:#8b98a9; --dim:#5b6b7e;
+    --accent:#22d3ee; --green:#34d399; --red:#f87171; --yellow:#fbbf24; --purple:#a78bfa; --blue:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,"Cascadia Mono",monospace}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 22px 80px}
+  header.top{border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:10px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px 24px;margin-bottom:26px}
+  h1{margin:0 0 4px;font-size:24px;letter-spacing:.3px}
+  h1 .app{color:var(--accent)}
+  .sub{color:var(--muted);font-size:13px}
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .fact{border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11.5px;color:var(--muted);background:var(--panel2)}
+  .fact b{color:var(--text);font-weight:600}
+  nav{margin:0 0 30px}
+  nav a{color:var(--accent);text-decoration:none;border:1px solid var(--border);border-radius:6px;
+    padding:3px 10px;margin:0 6px 6px 0;display:inline-block;font-size:12px;background:var(--panel)}
+  nav a:hover{border-color:var(--accent)}
+  section{border:1px solid var(--border);border-radius:10px;background:var(--panel);margin-bottom:26px;overflow:hidden}
+  section>h2{margin:0;padding:14px 20px;font-size:15px;background:var(--panel2);border-bottom:1px solid var(--border);
+    color:var(--text);display:flex;align-items:center;gap:10px}
+  section>h2 .n{color:var(--accent)}
+  section>h2 .tag{margin-left:auto;font-size:10.5px;color:var(--dim);font-weight:400;letter-spacing:.5px;text-transform:uppercase}
+  .body{padding:18px 20px}
+  .caption{color:var(--muted);font-size:12.5px;margin:10px 2px 0}
+  .caption b{color:var(--text)}
+  svg.dg{width:100%;height:auto;display:block;background:var(--panel2);border:1px solid var(--border);border-radius:8px}
+  /* ---------- SVG classes ---------- */
+  svg text{font-family:inherit}
+  .box{fill:#10161f;stroke:#2a3a4d;stroke-width:1.4}
+  .box-a{fill:#0d242b;stroke:var(--accent)}
+  .box-g{fill:#0e251d;stroke:var(--green)}
+  .box-p{fill:#201830;stroke:var(--purple)}
+  .box-y{fill:#221d0e;stroke:var(--yellow)}
+  .box-b{fill:#0d1a2b;stroke:var(--blue)}
+  .box-gray{fill:#15181d;stroke:#56637a}
+  .box-dim{fill:#0f1216;stroke:#33404f}
+  .lt{fill:var(--text);font-size:12px}
+  .ls{fill:var(--muted);font-size:11px}
+  .ld{fill:var(--dim);font-size:11px}
+  .lac{fill:var(--accent)}
+  .lgr{fill:var(--green)}
+  .lrd{fill:var(--red)}
+  .lyl{fill:var(--yellow)}
+  .lpr{fill:var(--purple)}
+  .lbu{fill:var(--blue)}
+  .t{fill:var(--text);font-size:12.5px;font-weight:700}
+  .s{fill:var(--muted);font-size:11px}
+  .ln{stroke:var(--accent);stroke-width:1.6;fill:none}
+  .ln-g{stroke:var(--green);stroke-width:1.6;fill:none}
+  .ln-r{stroke:var(--red);stroke-width:1.6;fill:none}
+  .ln-y{stroke:var(--yellow);stroke-width:1.6;fill:none}
+  .ln-gr{stroke:#5b6b7e;stroke-width:1.4;fill:none}
+  .life{stroke:#3a4a5d;stroke-width:1.2;stroke-dasharray:5 5}
+  .note{fill:#0e1319;stroke:#56637a;stroke-width:1.2;stroke-dasharray:4 3}
+  /* ---------- timeline rows ---------- */
+  .tl{display:grid;grid-template-columns:34px 1fr 1fr;gap:6px 12px;margin-top:14px}
+  .tl .row{display:contents}
+  .tl .num{color:var(--accent);font-size:12px;padding-top:2px}
+  .tl .sig{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px}
+  .tl .sig code{color:var(--yellow)}
+  .tl .sig b{color:var(--accent);font-weight:600}
+  .tl .note2{color:var(--muted);font-size:12px;padding-top:2px}
+  .tl .off{opacity:.72}
+  .chip{border:1px solid var(--border);border-radius:5px;background:var(--panel2);padding:2px 8px;font-size:11.5px;color:var(--muted)}
+  code{background:#0d141c;border:1px solid #223042;border-radius:5px;padding:1px 5px;font-size:12px;color:var(--yellow)}
+  .p{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .p b{color:var(--text)}
+  table.tools{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.tools th{text-align:left;color:var(--accent);border-bottom:1px solid var(--border);padding:6px 10px}
+  table.tools td{border-bottom:1px solid #1a2434;padding:8px 10px;vertical-align:top}
+  table.tools td b{color:var(--text)}
+  table.tools td .d{color:var(--muted);font-size:12px}
+  ul.ref{list-style:none;padding:0;margin:0;columns:2;column-gap:30px;font-size:12.5px}
+  ul.ref li{color:var(--muted);padding:3px 0;break-inside:avoid}
+  ul.ref li b{color:var(--text)}
+  ul.ref li span{color:var(--dim);font-size:11.5px}
+  footer{color:var(--dim);font-size:12px;text-align:center;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1><span class="app">feynman</span> — terminal coding agent · architecture</h1>
+  <div class="sub">Technical deep-dive of the monorepo, the client/server split, the agent loop, the SSE event contract, persistence, providers and cancellation. Diagrams first; text only where it earns its place.</div>
+  <div class="facts">
+    <div class="fact">Type <b>local terminal coding agent</b></div>
+    <div class="fact">Workspace <b>npm + turbo · 3 packages</b></div>
+    <div class="fact">Language <b>TypeScript · Node ≥ 20</b></div>
+    <div class="fact">UI <b>Ink 7 (React 19) TUI</b></div>
+    <div class="fact">Server <b>Express · localhost:3721</b></div>
+    <div class="fact">LLM <b>Vercel AI SDK streamText</b></div>
+    <div class="fact">Providers <b>LM Studio + OpenRouter</b></div>
+    <div class="fact">Store <b>better-sqlite3 · WAL</b></div>
+    <div class="fact">Tools <b>6 · auto-exec · maxSteps 25</b></div>
+  </div>
+</header>
+
+<nav>
+  <a href="#s1">1 · System context</a>
+  <a href="#s2">2 · Monorepo topology</a>
+  <a href="#s3">3 · Bootstrap</a>
+  <a href="#s4">4 · One turn, end-to-end</a>
+  <a href="#s5">5 · Agentic tool loop</a>
+  <a href="#s6">6 · SSE event contract</a>
+  <a href="#s7">7 · Persistence &amp; resume</a>
+  <a href="#s8">8 · Config &amp; providers</a>
+  <a href="#s9">9 · Cancel &amp; abort path</a>
+  <a href="#s10">10 · Tools</a>
+  <a href="#s11">11 · File map</a>
+</nav>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#22d3ee"/></marker>
+    <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5b6b7e"/></marker>
+    <marker id="argg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#34d399"/></marker>
+  </defs>
+</svg>
+
+<!-- ============================================================ -->
+<section id="s1">
+  <h2><span class="n">§1</span> System context — two processes, one pipe<span class="tag">the whole picture</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 440">
+      <rect x="16" y="170" width="148" height="118" class="box-gray"/>
+      <text x="90" y="196" class="t" text-anchor="middle">USER</text>
+      <text x="90" y="218" class="s" text-anchor="middle">terminal</text>
+      <text x="90" y="236" class="s" text-anchor="middle">run `feynman`</text>
+      <text x="90" y="252" class="s" text-anchor="middle">any project dir</text>
+
+      <rect x="214" y="28" width="276" height="384" class="box-a"/>
+      <text x="352" y="50" class="t" text-anchor="middle">feynman · packages/client</text>
+      <text x="352" y="68" class="s" text-anchor="middle">ESM · Ink 7 + React 19</text>
+      <text x="228" y="96" class="lt">Header · Transcript · ToolCards</text>
+      <text x="228" y="118" class="lt">PromptEditor · HistorySearch</text>
+      <text x="228" y="140" class="lt">SessionPicker (/resume fuzzy)</text>
+      <text x="228" y="162" class="lt">StatusBar · CommandMenu</text>
+      <text x="228" y="184" class="lt">conversation.ts reducer</text>
+      <text x="228" y="206" class="lt">ApiClient (REST + SSE)</text>
+      <text x="228" y="228" class="lt">ServerManager (spawn + /health)</text>
+      <text x="228" y="250" class="lt">commands/ · render.ts (plain)</text>
+      <text x="228" y="284" class="ls">Ctrl+C  cancel turn / exit</text>
+      <text x="228" y="304" class="ls">Ctrl+R  history search</text>
+      <text x="228" y="324" class="ls">Tab    tool-card nav</text>
+
+      <rect x="530" y="28" width="276" height="384" class="box-g"/>
+      <text x="668" y="50" class="t" text-anchor="middle">@feynman/server · packages/server</text>
+      <text x="668" y="68" class="s" text-anchor="middle">CJS · Express · bin feynman-server</text>
+      <text x="544" y="96" class="lt">SessionLoop (agent loop)</text>
+      <text x="544" y="118" class="lt">ToolRegistry -> 6 tools</text>
+      <text x="544" y="140" class="lt">SessionStore (better-sqlite3)</text>
+      <text x="544" y="162" class="lt">SkillsDiscovery (.agent/skills)</text>
+      <text x="544" y="184" class="lt">providers/ LM Studio · OpenRouter</text>
+      <text x="544" y="206" class="lt">prompt/composer · pricing · allowlist</text>
+      <text x="544" y="228" class="lt">routes/ health · sessions · skills</text>
+      <text x="544" y="262" class="ls">activeTurns Map session->AbortController</text>
+      <text x="544" y="282" class="ls">onStepFinish -> persist per step</text>
+      <text x="544" y="302" class="ls">fullStream -> SSE to client</text>
+
+      <rect x="826" y="40" width="142" height="60" class="box-p"/>
+      <text x="897" y="62" class="t" text-anchor="middle">LM Studio</text>
+      <text x="897" y="80" class="s" text-anchor="middle">local · OpenAI-compat</text>
+
+      <rect x="826" y="116" width="142" height="60" class="box-p"/>
+      <text x="897" y="138" class="t" text-anchor="middle">OpenRouter</text>
+      <text x="897" y="156" class="s" text-anchor="middle">cloud REST · api key</text>
+
+      <rect x="826" y="196" width="142" height="60" class="box-y"/>
+      <text x="897" y="218" class="t" text-anchor="middle">SQLite</text>
+      <text x="897" y="236" class="s" text-anchor="middle">~/.feynman/sessions.db</text>
+
+      <rect x="826" y="272" width="142" height="120" class="box-gray"/>
+      <text x="897" y="294" class="t" text-anchor="middle">Project filesystem</text>
+      <text x="897" y="316" class="s" text-anchor="middle">read / write / edit</text>
+      <text x="897" y="334" class="s" text-anchor="middle">shell commands</text>
+      <text x="897" y="352" class="s" text-anchor="middle">search</text>
+      <text x="897" y="370" class="s" text-anchor="middle">.agent/skills/</text>
+
+      <line x1="164" y1="229" x2="212" y2="229" class="ln" marker-end="url(#ar)"/>
+      <text x="188" y="220" class="ls" text-anchor="middle">keys</text>
+      <text x="188" y="254" class="ls" text-anchor="middle">ink</text>
+
+      <line x1="490" y1="210" x2="528" y2="210" class="ln" marker-end="url(#ar)"/>
+      <text x="509" y="198" class="ls" text-anchor="middle">HTTP :3721</text>
+      <text x="509" y="234" class="ls" text-anchor="middle">JSON + SSE</text>
+
+      <line x1="806" y1="70" x2="824" y2="70" class="ln-g" marker-end="url(#argg)"/>
+      <text x="815" y="60" class="ls" text-anchor="middle">/v1</text>
+      <line x1="806" y1="146" x2="824" y2="146" class="ln-g" marker-end="url(#argg)"/>
+      <text x="815" y="136" class="ls" text-anchor="middle">HTTPS</text>
+      <line x1="806" y1="226" x2="824" y2="226" class="ln-y" marker-end="url(#ar)"/>
+      <text x="815" y="216" class="ls" text-anchor="middle">sql</text>
+      <line x1="806" y1="332" x2="824" y2="332" class="ln-gr" marker-end="url(#arg)"/>
+      <text x="815" y="322" class="ls" text-anchor="middle">fs</text>
+    </svg>
+    <p class="caption">The client is a <b>thin renderer</b>: it never touches the model, filesystem or SQLite. All agent logic lives in the server, which the client spawns or attaches to as a background process. The contract between them is JSON over HTTP for control-plane calls and one SSE stream per turn for data-plane events.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s2">
+  <h2><span class="n">§2</span> Monorepo topology — who depends on whom<span class="tag">turbo · 3 packages</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 480">
+      <rect x="330" y="20" width="320" height="64" class="box-b"/>
+      <text x="490" y="42" class="t" text-anchor="middle">packages/types · @feynman/types</text>
+      <text x="490" y="60" class="s" text-anchor="middle">SSEEvent · Session · Message · Config · Skill · TurnUsage (types only, compiles away)</text>
+      <text x="490" y="74" class="s" text-anchor="middle">consumed from built dist/ — rebuild after edits</text>
+
+      <rect x="16" y="120" width="450" height="330" class="box-a"/>
+      <text x="241" y="142" class="t" text-anchor="middle">packages/client · feynman</text>
+      <text x="241" y="160" class="s" text-anchor="middle">ESM only (Ink 7 is ESM) · bin `feynman`</text>
+      <text x="30" y="190" class="lt">index.tsx        entry: TUI vs plain dispatch</text>
+      <text x="30" y="212" class="lt">server-manager.ts spawn + health check</text>
+      <text x="30" y="234" class="lt">api.ts           ApiClient: REST + SSE parser</text>
+      <text x="30" y="256" class="lt">render.ts        StreamRenderer (plain mode)</text>
+      <text x="30" y="278" class="lt">commands/        resume · new · skill (plain)</text>
+      <text x="30" y="312" class="ls">ui/  presentational + input</text>
+      <text x="30" y="334" class="lt">App · Header · Transcript</text>
+      <text x="30" y="356" class="lt">PromptEditor · CommandMenu</text>
+      <text x="30" y="378" class="lt">HistorySearch · StatusBar</text>
+      <text x="30" y="400" class="lt">ToolCard · SessionPicker</text>
+      <text x="30" y="434" class="ls">ui/  state + pure helpers</text>
+      <text x="30" y="456" class="lt">conversation.ts reducer · fuzzy.ts</text>
+      <text x="30" y="478" class="lt">editor.ts · history.ts · theme.ts · tty.ts</text>
+
+      <rect x="486" y="120" width="478" height="330" class="box-g"/>
+      <text x="725" y="142" class="t" text-anchor="middle">packages/server · @feynman/server</text>
+      <text x="725" y="160" class="s" text-anchor="middle">CJS · Express · bin `feynman-server` · :3721</text>
+      <text x="500" y="190" class="lt">index.ts             Express bootstrap, CORS, error handler</text>
+      <text x="500" y="212" class="lt">routes/              health · sessions (SSE + cancel) · skills</text>
+      <text x="500" y="234" class="lt">loop/session-loop.ts the agent loop + activeTurns map</text>
+      <text x="500" y="256" class="lt">providers/index.ts   createProviderModel factory</text>
+      <text x="500" y="278" class="lt">tools/               registry + 6 AgentTool implementations</text>
+      <text x="500" y="300" class="lt">db/                  schema.ts (SQLite) · sessions.ts (SessionStore)</text>
+      <text x="500" y="322" class="lt">skills/discovery.ts  SKILL.md scanner (gray-matter)</text>
+      <text x="500" y="344" class="lt">prompt/composer.ts   system prompt assembly</text>
+      <text x="500" y="366" class="lt">pricing.ts · allowlist.ts · config.ts</text>
+
+      <path d="M440 84 L250 118" class="ln-gr" marker-end="url(#arg)"/>
+      <path d="M540 84 L700 118" class="ln-gr" marker-end="url(#arg)"/>
+      <text x="452" y="100" class="ld" text-anchor="middle">types (dist)</text>
+      <text x="620" y="100" class="ld" text-anchor="middle">types (dist)</text>
+      <line x1="466" y1="285" x2="484" y2="285" class="ln" marker-end="url(#ar)"/>
+      <text x="475" y="276" class="ls" text-anchor="middle">HTTP</text>
+    </svg>
+    <p class="caption"><b>Hard client/server split</b>: the client is a pure consumer of the server's HTTP+SSE API and never imports server code. Both packages depend on the shared <code>@feynman/types</code> package. The server is the single source of truth for provider, tools, prompts and persistence.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s3">
+  <h2><span class="n">§3</span> Bootstrap — from `feynman` to a ready session<span class="tag">sequence</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 520">
+      <text x="90" y="22" class="t" text-anchor="middle">User</text>
+      <text x="250" y="22" class="t" text-anchor="middle">feynman (client)</text>
+      <text x="420" y="22" class="t" text-anchor="middle">ServerManager</text>
+      <text x="610" y="22" class="t" text-anchor="middle">feynman-server</text>
+      <text x="800" y="22" class="t" text-anchor="middle">SQLite</text>
+      <line x1="90" y1="34" x2="90" y2="500" class="life"/>
+      <line x1="250" y1="34" x2="250" y2="500" class="life"/>
+      <line x1="420" y1="34" x2="420" y2="500" class="life"/>
+      <line x1="610" y1="34" x2="610" y2="500" class="life"/>
+      <line x1="800" y1="34" x2="800" y2="500" class="life"/>
+
+      <line x1="90" y1="84" x2="248" y2="84" class="ln" marker-end="url(#ar)"/>
+      <text x="169" y="76" class="ls" text-anchor="middle">run `feynman` in &lt;project dir&gt;</text>
+
+      <rect x="140" y="112" width="220" height="26" class="note"/>
+      <text x="250" y="129" class="ls" text-anchor="middle">shouldUseTUI() ? TTY => Ink : --plain/pipe => readline</text>
+
+      <line x1="250" y1="168" x2="418" y2="168" class="ln" marker-end="url(#ar)"/>
+      <text x="334" y="160" class="ls" text-anchor="middle">ensureServerRunning()</text>
+
+      <line x1="420" y1="212" x2="608" y2="212" class="ln" marker-end="url(#ar)"/>
+      <text x="514" y="204" class="ls" text-anchor="middle">spawn feynman-server (detached, stdio:ignore)</text>
+
+      <rect x="470" y="240" width="280" height="26" class="note"/>
+      <text x="610" y="257" class="ls" text-anchor="middle">loadConfig · initDb(WAL) · register 6 tools · discover skills · listen :3721</text>
+
+      <line x1="610" y1="300" x2="798" y2="300" class="ln-y" marker-end="url(#ar)"/>
+      <text x="704" y="292" class="ls" text-anchor="middle">CREATE TABLE IF NOT EXISTS sessions / messages</text>
+
+      <line x1="420" y1="344" x2="608" y2="344" class="ln" marker-end="url(#ar)"/>
+      <text x="514" y="336" class="ls" text-anchor="middle">poll GET /health -> ok (<= 5 s)</text>
+
+      <line x1="250" y1="388" x2="608" y2="388" class="ln" marker-end="url(#ar)"/>
+      <text x="429" y="380" class="ls" text-anchor="middle">POST /sessions { cwd }</text>
+
+      <line x1="610" y1="432" x2="798" y2="432" class="ln-y" marker-end="url(#ar)"/>
+      <text x="704" y="424" class="ls" text-anchor="middle">INSERT session (id = 8-char UUID)</text>
+
+      <line x1="610" y1="476" x2="252" y2="476" class="ln" marker-end="url(#ar)"/>
+      <text x="431" y="468" class="ls" text-anchor="middle">201 { sessionId, session }  -> App ready, Header shows provider/model</text>
+    </svg>
+    <p class="caption">If the health check already passes, the client <b>attaches</b> to the running server instead of spawning one — so the second terminal window connects instantly and shares <code>~/.feynman/sessions.db</code>. A stale server is simply the last one spawned; a fresh kill/restart cycle is re-verified end-to-end.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s4">
+  <h2><span class="n">§4</span> One user turn — the full path<span class="tag">sequence · SSE back</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 540">
+      <text x="70" y="22" class="t" text-anchor="middle">Prompt</text>
+      <text x="70" y="36" class="s" text-anchor="middle">Editor</text>
+      <text x="220" y="22" class="t" text-anchor="middle">App / reducer</text>
+      <text x="350" y="22" class="t" text-anchor="middle">ApiClient</text>
+      <text x="520" y="22" class="t" text-anchor="middle">SessionLoop</text>
+      <text x="690" y="22" class="t" text-anchor="middle">AI SDK + provider</text>
+      <text x="830" y="22" class="t" text-anchor="middle">SQLite</text>
+      <line x1="70" y1="44" x2="70" y2="520" class="life"/>
+      <line x1="220" y1="44" x2="220" y2="520" class="life"/>
+      <line x1="350" y1="44" x2="350" y2="520" class="life"/>
+      <line x1="520" y1="44" x2="520" y2="520" class="life"/>
+      <line x1="690" y1="44" x2="690" y2="520" class="life"/>
+      <line x1="830" y1="44" x2="830" y2="520" class="life"/>
+
+      <line x1="70" y1="70" x2="218" y2="70" class="ln" marker-end="url(#ar)"/>
+      <text x="144" y="62" class="ls" text-anchor="middle">submit(text)</text>
+
+      <rect x="90" y="94" width="260" height="26" class="note"/>
+      <text x="220" y="111" class="ls" text-anchor="middle">busy=true · user + assistant-start · step 0/max</text>
+
+      <line x1="220" y1="150" x2="348" y2="150" class="ln" marker-end="url(#ar)"/>
+      <text x="284" y="142" class="ls" text-anchor="middle">sendMessage(id, text, onEvent)</text>
+
+      <line x1="350" y1="190" x2="518" y2="190" class="ln" marker-end="url(#ar)"/>
+      <text x="434" y="182" class="ls" text-anchor="middle">POST /sessions/:id/message (text/event-stream)</text>
+
+      <line x1="520" y1="230" x2="828" y2="230" class="ln-y" marker-end="url(#ar)"/>
+      <text x="674" y="222" class="ls" text-anchor="middle">load history · persist user msg (turn_index = #prior user turns)</text>
+
+      <line x1="520" y1="270" x2="688" y2="270" class="ln" marker-end="url(#ar)"/>
+      <text x="604" y="262" class="ls" text-anchor="middle">streamText(model, system, messages, tools, maxSteps=25, onStepFinish)</text>
+
+      <rect x="586" y="296" width="220" height="26" class="note"/>
+      <text x="696" y="313" class="ls" text-anchor="middle">provider streams tokens (LanguageModel)</text>
+
+      <line x1="520" y1="350" x2="828" y2="350" class="ln-y" marker-end="url(#ar)"/>
+      <text x="674" y="342" class="ls" text-anchor="middle">onStepFinish -> persist tool_call_json / tool_result_json / text per step</text>
+
+      <line x1="520" y1="400" x2="352" y2="400" class="ln" marker-end="url(#ar)"/>
+      <text x="436" y="392" class="ls" text-anchor="middle">SSE event stream -> (order in §6)</text>
+
+      <line x1="350" y1="444" x2="222" y2="444" class="ln" marker-end="url(#ar)"/>
+      <text x="286" y="436" class="ls" text-anchor="middle">onEvent -> reducer dispatch (ToolCards · StatusBar · transcript)</text>
+
+      <rect x="120" y="474" width="220" height="26" class="note"/>
+      <text x="230" y="491" class="ls" text-anchor="middle">finally: busy=false · usage shown · ready</text>
+    </svg>
+    <p class="caption">The server streams <b>one SSE response per turn</b>; the client's <code>eventsource-parser</code> feeds each parsed event to a reducer in <code>conversation.ts</code>. Unknown event types are ignored — the contract is additive, so the plain-mode renderer and future clients keep working.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s5">
+  <h2><span class="n">§5</span> The agentic tool loop — maxSteps 25<span class="tag">multi-step function calling</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 460">
+      <rect x="36" y="40" width="180" height="82" class="note"/>
+      <text x="126" y="62" class="ls" text-anchor="middle">persist per step</text>
+      <text x="126" y="80" class="ld" text-anchor="middle">onStepFinish writes</text>
+      <text x="126" y="96" class="ld" text-anchor="middle">tool_call_json /</text>
+      <text x="126" y="112" class="ld" text-anchor="middle">tool_result_json / text</text>
+
+      <rect x="40" y="170" width="180" height="66" class="box-dim"/>
+      <text x="130" y="192" class="lt" text-anchor="middle">1 · step-start</text>
+      <text x="130" y="210" class="ls" text-anchor="middle">model turn begins</text>
+      <text x="130" y="226" class="ls" text-anchor="middle">(fullStream emits)</text>
+
+      <rect x="300" y="40" width="200" height="66" class="box-a"/>
+      <text x="400" y="62" class="lt" text-anchor="middle">2 · model emits</text>
+      <text x="400" y="80" class="lt" text-anchor="middle">tool_calls + text</text>
+      <text x="400" y="96" class="ls" text-anchor="middle">function-calling JSON</text>
+
+      <rect x="560" y="140" width="190" height="66" class="box-g"/>
+      <text x="655" y="162" class="lt" text-anchor="middle">3 · SDK runs</text>
+      <text x="655" y="180" class="lt" text-anchor="middle">tool.execute()</text>
+      <text x="655" y="196" class="ls" text-anchor="middle">tools registry: fs · shell · search</text>
+
+      <rect x="560" y="300" width="190" height="66" class="box-y"/>
+      <text x="655" y="322" class="lt" text-anchor="middle">4 · tool-result appended</text>
+      <text x="655" y="340" class="lt" text-anchor="middle">as role:'tool'</text>
+      <text x="655" y="356" class="ls" text-anchor="middle">result fed back to model</text>
+
+      <rect x="300" y="360" width="200" height="66" class="box-b"/>
+      <text x="400" y="382" class="lt" text-anchor="middle">5 · model continues</text>
+      <text x="400" y="400" class="lt" text-anchor="middle">or finish</text>
+      <text x="400" y="416" class="ls" text-anchor="middle">no tool_calls => final text</text>
+
+      <rect x="760" y="360" width="190" height="82" class="note"/>
+      <text x="855" y="382" class="ls" text-anchor="middle">cancel path</text>
+      <text x="855" y="400" class="ld" text-anchor="middle">AbortController.abort()</text>
+      <text x="855" y="416" class="ld" text-anchor="middle">-> provider stream aborts</text>
+      <text x="855" y="432" class="ld" text-anchor="middle">-> run_terminal killed (§9)</text>
+
+      <rect x="300" y="190" width="200" height="90" class="box-gray"/>
+      <text x="400" y="212" class="t" text-anchor="middle">AI SDK streamText</text>
+      <text x="400" y="230" class="s" text-anchor="middle">owns the multi-step loop</text>
+      <text x="400" y="246" class="s" text-anchor="middle">step <= maxSteps</text>
+      <text x="400" y="262" class="lac" text-anchor="middle">config.agent.maxIterations (25)</text>
+
+      <path d="M220 185 Q250 110 298 95" class="ln" fill="none" marker-end="url(#ar)"/>
+      <path d="M500 95 Q540 110 558 150" class="ln" fill="none" marker-end="url(#ar)"/>
+      <path d="M655 206 L655 298" class="ln" fill="none" marker-end="url(#ar)"/>
+      <path d="M560 345 L502 375" class="ln" fill="none" marker-end="url(#ar)"/>
+      <path d="M400 358 Q330 330 280 300 Q180 230 160 220" class="ln" fill="none" marker-end="url(#ar)"/>
+      <path d="M500 240 L558 200" class="ln-gr" fill="none" marker-end="url(#arg)"/>
+      <path d="M210 81 L298 81" class="ln-gr" fill="none" marker-end="url(#arg)"/>
+      <path d="M500 370 L758 380" class="ln-gr" fill="none" marker-end="url(#arg)"/>
+      <text x="520" y="70" class="ld">finish when no tool_calls</text>
+    </svg>
+    <p class="caption">The Vercel AI SDK executes the whole agentic loop server-side: it sends <code>tool_calls</code> back to <code>execute()</code>, injects the results as <code>role:'tool'</code> messages, and re-invokes the model until it stops calling tools or <code>maxSteps</code> (25) is hit. Each completed step is persisted immediately via <code>onStepFinish</code> — no batching, so a crash never loses a finished step.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s6">
+  <h2><span class="n">§6</span> SSE event contract<span class="tag">emitted order</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 150">
+      <rect x="20" y="20" width="180" height="44" class="box-b"/>
+      <text x="110" y="47" class="lt" text-anchor="middle">connecting</text>
+      <rect x="250" y="20" width="180" height="44" class="box-b"/>
+      <text x="340" y="47" class="lt" text-anchor="middle">streaming</text>
+      <rect x="480" y="20" width="180" height="44" class="box-b"/>
+      <text x="570" y="47" class="lt" text-anchor="middle">tool-running</text>
+      <rect x="710" y="20" width="180" height="44" class="box-b"/>
+      <text x="800" y="47" class="lt" text-anchor="middle">done</text>
+      <line x1="200" y1="42" x2="248" y2="42" class="ln" marker-end="url(#ar)"/>
+      <line x1="430" y1="42" x2="478" y2="42" class="ln" marker-end="url(#ar)"/>
+      <line x1="660" y1="42" x2="708" y2="42" class="ln" marker-end="url(#ar)"/>
+      <rect x="710" y="96" width="180" height="40" class="box-y"/>
+      <text x="800" y="120" class="lt" text-anchor="middle">cancelled</text>
+      <path d="M110 64 C110 90 700 70 720 96" class="ln-y" fill="none" marker-end="url(#ar)"/>
+      <text x="360" y="104" class="ld">Ctrl+C / POST /sessions/:id/cancel — any phase</text>
+    </svg>
+    <div class="tl">
+      <div class="row"><div class="num">01</div><div class="sig"><b>status</b> { <code>connecting</code> }</div><div class="note2">turn starts, provider call in flight</div></div>
+      <div class="row"><div class="num">02</div><div class="sig"><b>step-start</b> { step, <code>maxSteps</code> }</div><div class="note2">per agentic step; maxSteps from config</div></div>
+      <div class="row"><div class="num">03</div><div class="sig"><b>status</b> { <code>streaming</code> }</div><div class="note2">model turn underway</div></div>
+      <div class="row"><div class="num">04</div><div class="sig"><b>text-delta</b> { delta }</div><div class="note2">streamed token text, many times</div></div>
+      <div class="row"><div class="num">05</div><div class="sig"><b>status</b> { <code>tool-running</code> }</div><div class="note2">model requested tool_calls</div></div>
+      <div class="row"><div class="num">06</div><div class="sig"><b>tool-call</b> { <b>id</b>, toolName, args }</div><div class="note2">correlation id for the result</div></div>
+      <div class="row"><div class="num">07</div><div class="sig"><b>status</b> { <code>streaming</code> }</div><div class="note2">tool executed, model continues</div></div>
+      <div class="row"><div class="num">08</div><div class="sig"><b>tool-result</b> { <b>id</b>, toolName, result }</div><div class="note2">result truncated to 800 chars over SSE</div></div>
+      <div class="row"><div class="num">09</div><div class="sig">step-finish / finish</div><div class="note2">usage captured server-side</div></div>
+      <div class="row"><div class="num">10</div><div class="sig"><b>usage</b> { prompt, completion, total, cost?, model, elapsedMs }</div><div class="note2">cost via pricing.ts; omitted when unknown</div></div>
+      <div class="row"><div class="num">11</div><div class="sig"><b>status</b> { <code>done</code> } + <b>done</b></div><div class="note2">turn complete</div></div>
+      <div class="row off"><div class="num">A</div><div class="sig"><b>session-start-disclaimer</b> { message }</div><div class="note2">first turn, model not on allowlist</div></div>
+      <div class="row off"><div class="num">B</div><div class="sig"><b>error</b> { message }</div><div class="note2">failure; persisted as "[Agent error: ...]"</div></div>
+      <div class="row off"><div class="num">C</div><div class="sig"><b>status</b>{<code>cancelled</code>} + <b>cancelled</b>{ reason? } + <b>done</b></div><div class="note2">abort path; nothing persisted as error</div></div>
+    </div>
+    <p class="caption">Backwards compatible: the plain-mode <code>StreamRenderer</code> has no <code>default</code> case and reads only existing fields, so new event types are silently ignored. Correlation is by <code>tool-call.id == tool-result.id</code>.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s7">
+  <h2><span class="n">§7</span> Persistence &amp; resume<span class="tag">SQLite · /resume picker</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 330">
+      <rect x="30" y="30" width="300" height="200" class="box-y"/>
+      <text x="180" y="54" class="t" text-anchor="middle">sessions</text>
+      <line x1="40" y1="66" x2="320" y2="66" class="ln-gr"/>
+      <text x="44" y="86" class="lt">id            TEXT  PK</text>
+      <text x="44" y="106" class="lt">created_at    TEXT</text>
+      <text x="44" y="126" class="lt">updated_at    TEXT  (touch per turn)</text>
+      <text x="44" y="146" class="lt">cwd           TEXT</text>
+      <text x="44" y="166" class="lt">provider      TEXT</text>
+      <text x="44" y="186" class="lt">model         TEXT</text>
+      <text x="44" y="206" class="lt">title         TEXT? (first 60 chars)</text>
+      <text x="44" y="226" class="ld">preview       derived, not stored (§7)</text>
+
+      <rect x="420" y="30" width="360" height="200" class="box-y"/>
+      <text x="600" y="54" class="t" text-anchor="middle">messages</text>
+      <line x1="430" y1="66" x2="770" y2="66" class="ln-gr"/>
+      <text x="434" y="86" class="lt">id             INTEGER PK AUTOINCREMENT</text>
+      <text x="434" y="106" class="lt">session_id     TEXT FK -> sessions.id</text>
+      <text x="434" y="126" class="lt">turn_index     INTEGER (once per user turn)</text>
+      <text x="434" y="146" class="lt">role           user | assistant | tool</text>
+      <text x="434" y="166" class="lt">content        TEXT  (null for pure tool_calls)</text>
+      <text x="434" y="186" class="lt">tool_call_json   TEXT (AI SDK ToolCall[])</text>
+      <text x="434" y="206" class="lt">tool_result_json TEXT (AI SDK ToolResult[])</text>
+      <text x="434" y="226" class="ld">idx: idx_messages_session_id · ON DELETE CASCADE</text>
+
+      <line x1="420" y1="70" x2="332" y2="70" class="ln-y" marker-end="url(#ar)"/>
+      <text x="376" y="60" class="ls" text-anchor="middle">1 — N</text>
+
+      <rect x="820" y="40" width="150" height="170" class="box-dim"/>
+      <text x="895" y="62" class="t" text-anchor="middle">replay</text>
+      <text x="895" y="84" class="ls" text-anchor="middle">buildHistory()</text>
+      <text x="895" y="104" class="ls" text-anchor="middle">reconstructs</text>
+      <text x="895" y="122" class="ls" text-anchor="middle">tool-call /</text>
+      <text x="895" y="140" class="ls" text-anchor="middle">tool-result</text>
+      <text x="895" y="158" class="ls" text-anchor="middle">messages into</text>
+      <text x="895" y="176" class="ls" text-anchor="middle">CoreMessage[]</text>
+      <text x="895" y="194" class="ls" text-anchor="middle">for the model</text>
+
+      <line x1="530" y1="240" x2="120" y2="278" class="ln-gr" fill="none" marker-end="url(#arg)"/>
+      <text x="300" y="252" class="ls" text-anchor="middle">resume flow below</text>
+    </svg>
+    <svg class="dg" viewBox="0 0 980 130">
+      <rect x="20" y="30" width="130" height="66" class="box-a"/>
+      <text x="85" y="54" class="lt" text-anchor="middle">`/resume`</text>
+      <text x="85" y="72" class="ls" text-anchor="middle">(no arg)</text>
+      <rect x="175" y="30" width="160" height="66" class="box-g"/>
+      <text x="255" y="54" class="lt" text-anchor="middle">GET /sessions</text>
+      <text x="255" y="72" class="ls" text-anchor="middle">list + preview (subquery)</text>
+      <rect x="360" y="30" width="150" height="66" class="box-b"/>
+      <text x="435" y="54" class="lt" text-anchor="middle">SessionPicker</text>
+      <text x="435" y="72" class="ls" text-anchor="middle">fuzzy filter</text>
+      <rect x="535" y="30" width="170" height="66" class="box-y"/>
+      <text x="620" y="54" class="lt" text-anchor="middle">Enter -> resumeSession(id)</text>
+      <text x="620" y="72" class="ls" text-anchor="middle">Esc/Ctrl+C = close, no switch</text>
+      <rect x="730" y="30" width="160" height="66" class="box-g"/>
+      <text x="810" y="54" class="lt" text-anchor="middle">GET /sessions/:id</text>
+      <text x="810" y="72" class="ls" text-anchor="middle">full history</text>
+      <line x1="150" y1="63" x2="173" y2="63" class="ln" marker-end="url(#ar)"/>
+      <line x1="335" y1="63" x2="358" y2="63" class="ln" marker-end="url(#ar)"/>
+      <line x1="510" y1="63" x2="533" y2="63" class="ln" marker-end="url(#ar)"/>
+      <line x1="705" y1="63" x2="728" y2="63" class="ln" marker-end="url(#ar)"/>
+      <rect x="905" y="30" width="60" height="66" class="box-dim"/>
+      <text x="935" y="52" class="ld" text-anchor="middle">reset</text>
+      <text x="935" y="68" class="ld" text-anchor="middle">+ replay</text>
+      <text x="935" y="84" class="ld" text-anchor="middle">ready</text>
+    </svg>
+    <div class="chip" style="display:inline-block">preview = (SELECT content FROM messages WHERE session_id = s.id AND role='user' AND content IS NOT NULL ORDER BY id DESC LIMIT 1)</div>
+    <p class="caption">Sessions resume with the <b>full message history</b> replayed into the transcript, and the conversation is reconstructed server-side into <code>CoreMessage[]</code> so the model continues with complete context. The <code>/resume &lt;id&gt;</code> fast path still works — the picker is the primary path.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s8">
+  <h2><span class="n">§8</span> Config &amp; provider selection<span class="tag">precedence chain</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 400">
+      <rect x="20" y="60" width="150" height="56" class="box-dim"/>
+      <text x="95" y="83" class="lt" text-anchor="middle">DEFAULTS</text>
+      <text x="95" y="101" class="ld" text-anchor="middle">lowest</text>
+      <rect x="200" y="60" width="190" height="56" class="box-dim"/>
+      <text x="295" y="83" class="lt" text-anchor="middle">~/.feynman/config.json</text>
+      <text x="295" y="101" class="ld" text-anchor="middle">global (any cwd)</text>
+      <rect x="420" y="60" width="190" height="56" class="box-dim"/>
+      <text x="515" y="83" class="lt" text-anchor="middle">&lt;cwd&gt;/.agent/config.json</text>
+      <text x="515" y="101" class="ld" text-anchor="middle">per-project</text>
+      <rect x="640" y="60" width="190" height="56" class="box-a"/>
+      <text x="735" y="83" class="lt" text-anchor="middle">env vars / .env</text>
+      <text x="735" y="101" class="lac" text-anchor="middle">highest</text>
+      <line x1="170" y1="88" x2="198" y2="88" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="390" y1="88" x2="418" y2="88" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="610" y1="88" x2="638" y2="88" class="ln-gr" marker-end="url(#arg)"/>
+      <text x="404" y="50" class="ls" text-anchor="middle">precedence -></text>
+      <text x="20" y="140" class="ls">env keys: OPENROUTER_API_KEY · LMSTUDIO_BASE_URL · FEYNMAN_MODEL · FEYNMAN_PROVIDER · FEYNMAN_PORT</text>
+      <text x="20" y="158" class="ld">deep-merged per section (lmstudio · openrouter · allowlist · server · skills · agent); never written back to files</text>
+
+      <rect x="20" y="230" width="150" height="76" class="box-gray"/>
+      <text x="95" y="254" class="lt" text-anchor="middle">Config</text>
+      <text x="95" y="274" class="ls" text-anchor="middle">{ provider, model }</text>
+      <text x="95" y="292" class="ls" text-anchor="middle">+ apiKey / baseUrl</text>
+
+      <rect x="230" y="230" width="200" height="76" class="box-b"/>
+      <text x="330" y="254" class="lt" text-anchor="middle">createProviderModel()</text>
+      <text x="330" y="274" class="ls" text-anchor="middle">providers/index.ts</text>
+      <text x="330" y="292" class="ls" text-anchor="middle">switch on config.provider</text>
+
+      <rect x="500" y="180" width="220" height="84" class="box-p"/>
+      <text x="610" y="202" class="lt" text-anchor="middle">lmstudio</text>
+      <text x="610" y="222" class="ls" text-anchor="middle">@ai-sdk/openai-compatible</text>
+      <text x="610" y="240" class="ls" text-anchor="middle">baseURL = config.lmstudio.baseUrl</text>
+      <text x="610" y="256" class="ls" text-anchor="middle">(default http://localhost:1234/v1)</text>
+
+      <rect x="500" y="286" width="220" height="84" class="box-p"/>
+      <text x="610" y="308" class="lt" text-anchor="middle">openrouter</text>
+      <text x="610" y="328" class="ls" text-anchor="middle">@openrouter/ai-sdk-provider</text>
+      <text x="610" y="346" class="ls" text-anchor="middle">apiKey = config.openrouter.apiKey</text>
+      <text x="610" y="362" class="ls" text-anchor="middle">(throws if missing)</text>
+
+      <rect x="780" y="240" width="170" height="80" class="box-g"/>
+      <text x="865" y="262" class="lt" text-anchor="middle">LanguageModel</text>
+      <text x="865" y="282" class="ls" text-anchor="middle">passed to streamText</text>
+      <text x="865" y="300" class="ls" text-anchor="middle">one abstraction for both</text>
+
+      <line x1="170" y1="268" x2="228" y2="268" class="ln" marker-end="url(#ar)"/>
+      <line x1="430" y1="250" x2="498" y2="228" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="430" y1="286" x2="498" y2="308" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="720" y1="222" x2="778" y2="262" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="720" y1="330" x2="778" y2="300" class="ln-gr" marker-end="url(#arg)"/>
+    </svg>
+    <p class="caption">Adding a provider = one case in the factory + a <code>Config</code> field. The <code>LanguageModel</code> interface is the seam — <code>session-loop.ts</code> never knows which provider is in use. Allowlist is <b>advisory</b>: off-list models still run, with a once-per-session disclaimer.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s9">
+  <h2><span class="n">§9</span> Cancel &amp; abort path — Ctrl+C<span class="tag">2 presses</span></h2>
+  <div class="body">
+    <svg class="dg" viewBox="0 0 980 400">
+      <rect x="20" y="40" width="200" height="80" class="box-a"/>
+      <text x="120" y="64" class="lt" text-anchor="middle">1 · Ctrl+C while busy</text>
+      <text x="120" y="84" class="ls" text-anchor="middle">App arms cancel; first press</text>
+      <text x="120" y="100" class="ls" text-anchor="middle">calls cancelTurn()</text>
+
+      <rect x="260" y="40" width="210" height="80" class="box-a"/>
+      <text x="365" y="64" class="lt" text-anchor="middle">2 · POST /sessions/:id/cancel</text>
+      <text x="365" y="84" class="ls" text-anchor="middle">route -> SessionLoop.cancelTurn</text>
+      <text x="365" y="100" class="ls" text-anchor="middle">(false if turn already idle)</text>
+
+      <rect x="510" y="40" width="210" height="80" class="box-g"/>
+      <text x="615" y="64" class="lt" text-anchor="middle">3 · AbortController.abort()</text>
+      <text x="615" y="84" class="ls" text-anchor="middle">activeTurns Map lookup by</text>
+      <text x="615" y="100" class="ls" text-anchor="middle">session id</text>
+
+      <rect x="760" y="40" width="190" height="80" class="box-y"/>
+      <text x="855" y="64" class="lt" text-anchor="middle">4 · AbortError in</text>
+      <text x="855" y="84" class="lt" text-anchor="middle">fullStream loop</text>
+      <text x="855" y="100" class="ls" text-anchor="middle">emit cancelled (not error)</text>
+
+      <line x1="220" y1="80" x2="258" y2="80" class="ln" marker-end="url(#ar)"/>
+      <line x1="470" y1="80" x2="508" y2="80" class="ln" marker-end="url(#ar)"/>
+      <line x1="720" y1="80" x2="758" y2="80" class="ln" marker-end="url(#ar)"/>
+
+      <rect x="20" y="210" width="230" height="90" class="box-y"/>
+      <text x="135" y="234" class="lt" text-anchor="middle">5 · run_terminal abort listener</text>
+      <text x="135" y="254" class="ls" text-anchor="middle">killProcessTree(pid)</text>
+      <text x="135" y="274" class="ls" text-anchor="middle">win32: taskkill /pid /T /F</text>
+      <text x="135" y="290" class="ls" text-anchor="middle">posix: process.kill(-pid)</text>
+
+      <rect x="300" y="210" width="230" height="90" class="box-b"/>
+      <text x="415" y="234" class="lt" text-anchor="middle">6 · server emits</text>
+      <text x="415" y="254" class="lt" text-anchor="middle">status:cancelled -></text>
+      <text x="415" y="274" class="lt" text-anchor="middle">cancelled -> done</text>
+      <text x="415" y="290" class="ls" text-anchor="middle">nothing persisted as error</text>
+
+      <rect x="580" y="210" width="230" height="90" class="box-a"/>
+      <text x="695" y="234" class="lt" text-anchor="middle">7 · client handles</text>
+      <text x="695" y="254" class="lt" text-anchor="middle">cancel-running-tools</text>
+      <text x="695" y="274" class="lt" text-anchor="middle">"Turn cancelled."</text>
+      <text x="695" y="290" class="ls" text-anchor="middle">next message starts fresh</text>
+
+      <rect x="860" y="210" width="100" height="90" class="box-dim"/>
+      <text x="910" y="244" class="ld" text-anchor="middle" transform="rotate(90 910 244)">2nd Ctrl+C = exit()</text>
+
+      <line x1="135" y1="120" x2="135" y2="208" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="615" y1="120" x2="415" y2="208" class="ln-gr" marker-end="url(#arg)"/>
+      <line x1="855" y1="120" x2="695" y2="208" class="ln-gr" marker-end="url(#arg)"/>
+      <text x="150" y="180" class="ld">abort signal reaches tool</text>
+      <text x="440" y="180" class="ld">SSE back to client</text>
+    </svg>
+    <p class="caption">The AI SDK does <b>not</b> abort-check by itself — it relies on the provider stream honoring <code>abortSignal</code>. That's why the cancel test uses a custom abort-aware <code>ReadableStream</code> whose pending <code>pull</code> rejects with <code>AbortError</code>. A hung <code>run_terminal</code> is killed through this same path.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s10">
+  <h2><span class="n">§10</span> Tools — the model's hands<span class="tag">6 AgentTools</span></h2>
+  <div class="body">
+    <table class="tools">
+      <tr><th>Tool</th><th>Behavior</th><th>Key detail</th></tr>
+      <tr><td><b>read_file</b></td><td>Read file with <code>N: line</code> numbered output</td><td>Numbering aids targeted edits downstream</td></tr>
+      <tr><td><b>write_file</b></td><td>Overwrite (or create) a file</td><td><code>mkdir -p</code> parents; prefer <code>edit</code> for surgical changes</td></tr>
+      <tr><td><b>edit</b></td><td>Find-and-replace a unique <code>old_str</code></td><td>Fails loudly on 0 or &gt;1 occurrences (no silent no-ops)</td></tr>
+      <tr><td><b>run_terminal</b></td><td>Run a shell command, capture stdout/stderr/exit code</td><td><code>shell:true</code> · 30s timeout · abort kills process tree</td></tr>
+      <tr><td><b>list_dir</b></td><td>Recursive directory listing (depth 1–5)</td><td>Skips node_modules/.git/dist/build/cache</td></tr>
+      <tr><td><b>search</b></td><td>Regex search across files</td><td>ripgrep -> grep -> pure-JS fallback; max 100 matches</td></tr>
+    </table>
+    <p class="caption">Every tool is a zod-schema'd <code>AgentTool</code> registered in <code>registry.ts</code>. <code>getAISDKTools()</code> keeps <code>execute</code> <b>required</b> — making it optional widens to <code>CoreTool</code>, whose conditional <code>ToolResultUnion</code> resolves to <code>never</code> and strips <code>tool-result</code> from <code>fullStream</code> (the ticket #2 root-cause fix).</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="s11">
+  <h2><span class="n">§11</span> File map<span class="tag">where everything lives</span></h2>
+  <div class="body">
+    <ul class="ref">
+      <li><b>packages/client/src/index.tsx</b> <span>entry · TUI vs plain dispatch</span></li>
+      <li><b>packages/client/src/ui/App.tsx</b> <span>layout · commands · Ctrl+C</span></li>
+      <li><b>packages/client/src/ui/conversation.ts</b> <span>transcript reducer</span></li>
+      <li><b>packages/client/src/ui/PromptEditor.tsx</b> <span>editor · slash menu · history</span></li>
+      <li><b>packages/client/src/ui/SessionPicker.tsx</b> <span>/resume fuzzy picker</span></li>
+      <li><b>packages/client/src/ui/fuzzy.ts</b> <span>fuzzy subsequence matcher</span></li>
+      <li><b>packages/client/src/ui/ToolCard.tsx</b> <span>collapsible tool cards</span></li>
+      <li><b>packages/client/src/ui/StatusBar.tsx</b> <span>live step/usage/cancel</span></li>
+      <li><b>packages/client/src/api.ts</b> <span>ApiClient (REST + SSE)</span></li>
+      <li><b>packages/client/src/server-manager.ts</b> <span>spawn/health</span></li>
+      <li><b>packages/server/src/loop/session-loop.ts</b> <span>agent loop + cancel</span></li>
+      <li><b>packages/server/src/routes/sessions.ts</b> <span>SSE · cancel · list/get</span></li>
+      <li><b>packages/server/src/tools/registry.ts</b> <span>AgentTool + AI SDK bridge</span></li>
+      <li><b>packages/server/src/providers/index.ts</b> <span>provider factory</span></li>
+      <li><b>packages/server/src/db/schema.ts</b> <span>SQLite init/WAL</span></li>
+      <li><b>packages/server/src/db/sessions.ts</b> <span>SessionStore (list + preview)</span></li>
+      <li><b>packages/server/src/prompt/composer.ts</b> <span>system prompt assembly</span></li>
+      <li><b>packages/server/src/config.ts</b> <span>precedence + env loading</span></li>
+      <li><b>packages/types/src/index.ts</b> <span>shared SSE/HTTP types</span></li>
+    </ul>
+  </div>
+</section>
+
+<footer>feynman · docs/feynman-architecture.html · diagrams reflect packages/client · packages/server · packages/types at commit 1c8c4e5</footer>
+</div>
+</body>
+</html>
