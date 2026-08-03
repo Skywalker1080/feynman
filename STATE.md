@@ -301,8 +301,8 @@ hang on the TUI.
     clean exit after stdin EOF. This satisfies the "stable for a full multi-tool turn" + "piped
     non-TTY auto-fallback" criteria.
   - `--plain` with a piped prompt → same line-streaming path, forced.
-- Interactive `feynman --plain` inside a real TTY uses the identical `runPlain` path (readline
-  REPL pre-dates the TUI) — pending owner confirmation as with prior M-tickets.
+- **Owner interactive TTY verification (2026-08-03):** ✅ confirmed — `feynman --plain` inside a
+  real TTY runs the readline line-streaming REPL (no Ink TUI). Ticket closed.
 
 ### Verified end-to-end (2026-08-02)
 
