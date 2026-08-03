@@ -1,4 +1,4 @@
-export type ToolStatus = 'running' | 'done' | 'error';
+export type ToolStatus = 'running' | 'done' | 'error' | 'cancelled';
 
 export type TranscriptItem =
   | { kind: 'user'; id: number; text: string }
@@ -45,6 +45,7 @@ export type TranscriptAction =
   | { type: 'tool-result'; toolCallId: string; result: string }
   | { type: 'toggle-tool'; toolCallId: string }
   | { type: 'fail-running-tools'; message: string }
+  | { type: 'cancel-running-tools' }
   | { type: 'system'; text: string }
   | { type: 'error'; text: string }
   | { type: 'reset' };
@@ -159,6 +160,16 @@ export function transcriptReducer(
         if (item.kind !== 'tool' || item.status !== 'running') return item;
         changed = true;
         return { ...item, status: 'error' as const, error: action.message };
+      });
+      return changed ? copy : items;
+    }
+
+    case 'cancel-running-tools': {
+      let changed = false;
+      const copy = items.map((item) => {
+        if (item.kind !== 'tool' || item.status !== 'running') return item;
+        changed = true;
+        return { ...item, status: 'cancelled' as const };
       });
       return changed ? copy : items;
     }

@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #4 StatusBar live usage — done + verified: all tests green, committed, closed)
+**Last updated:** 2026-08-03 (ticket #5 Ctrl+C cancel — implemented + tests green, committed)
 
 ---
 
@@ -54,6 +54,7 @@ Vercel AI SDK.
 | **Server event-contract upgrade (ticket #2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03. See §3a |
 | **ToolCards (ticket #3, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
+| **Cancel in-flight turns (ticket #5, M2)** | ✅ **IMPLEMENTED + TESTS GREEN** — committed 2026-08-03; interactive TTY run pending owner. See §3c |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -144,6 +145,42 @@ the ticket #2 SSE event contract.
 **Gotcha (ticket #4):** same as #2 — `@feynman/types` is consumed from its built `dist/`; after
 editing `packages/types/src/index.ts` you must rebuild it (`npx tsup` in `packages/types`) or the
 client/server typecheck fails against stale types.
+
+### 3c. Ticket #5 — Cancel in-flight turns (M2, implemented 2026-08-03)
+
+**Goal:** interrupt control in the TUI. Ctrl+C cancels the in-flight turn (via the ticket #2 cancel
+endpoint) and the transcript shows a cancelled state; a second Ctrl+C exits the app. A hung
+`run_terminal` is killed through the cancel path (server-side abort → `killProcessTree`).
+
+**Implemented (client-side; server cancel path was already in place from ticket #2):**
+- `packages/client/src/index.tsx` — `render(<App/>, { exitOnCtrlC: false })` so Ctrl+C reaches the
+  app's own handlers instead of Ink exiting immediately.
+- `packages/client/src/ui/App.tsx` — global always-on `useInput`: Ctrl+C while busy arms a cancel
+  (first press → `cancelTurn()` + system hint "Cancelling turn… press Ctrl+C again to exit", second
+  press → `exit()`); Ctrl+C when idle exits directly. `cancelArmedRef` resets when the turn settles.
+  `handleEvent` now handles the `cancelled` SSE event → running tool cards marked cancelled + system
+  message "Turn cancelled.".
+- `packages/client/src/ui/conversation.ts` — `ToolStatus` gains `'cancelled'`; new reducer action
+  `cancel-running-tools` marks running tools as cancelled (leaves completed ones done).
+- `packages/client/src/ui/ToolCard.tsx` — cancelled cards render `◼` (warning color) + body
+  "cancelled".
+- `packages/client/src/ui/PromptEditor.tsx` — Ctrl+C is ignored by the editor (no literal "c"
+  inserted); handled globally.
+- `packages/client/src/ui/StatusBar.tsx` — hint is context-aware: busy → "Ctrl+C cancel", idle →
+  "Ctrl+C exit".
+- Help text (`/help`) documents the new Ctrl+C behavior.
+
+**Verification state (2026-08-03):** ✅ TESTS GREEN, interactive TTY run pending.
+- `npm run build` passes (3 tasks); `npm test` → **93 tests green** (server: 22, client: 71 — +2:
+  `cancel-running-tools` reducer test, cancelled ToolCard render test; StatusBar hints asserted).
+- Client typecheck + lint clean; server typecheck/lint failures remain the **pre-existing** `search.ts`
+  TS2367 ×2 + `sessions.ts` unused `randomUUID`/`any` ×2 (deferred tickets).
+- Server-side cancel already proven by ticket #2's `session-loop.test.ts` (cancel → cancelled event;
+  `run_terminal` abort kills the process tree).
+
+**Pending:** owner interactive TTY verification — Ctrl+C during a normal turn shows "Turn cancelled."
++ ◼ cards, second Ctrl+C exits; Ctrl+C during a deliberately long `run_terminal` (e.g. `sleep 300`)
+  kills it; send a new message after a cancel to confirm a clean fresh turn.
 
 ### Verified end-to-end (2026-08-02)
 

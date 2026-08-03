@@ -144,6 +144,34 @@ describe('transcriptReducer', () => {
     expect(tool.status).toBe('done');
   });
 
+  it('marks running tools as cancelled, leaving completed ones done', () => {
+    let items = createTranscript();
+    items = transcriptReducer(items, {
+      type: 'tool-call',
+      toolCallId: 'tc-1',
+      toolName: 'run_terminal',
+      args: { command: 'sleep 100' },
+      argsSummary: 'sleep 100',
+      startedAt: 1000,
+    });
+    items = transcriptReducer(items, {
+      type: 'tool-call',
+      toolCallId: 'tc-2',
+      toolName: 'read_file',
+      args: {},
+      argsSummary: '',
+      startedAt: 1001,
+    });
+    items = transcriptReducer(items, { type: 'tool-result', toolCallId: 'tc-2', result: 'ok' });
+    items = transcriptReducer(items, { type: 'cancel-running-tools' });
+    const tools = items.filter((i) => i.kind === 'tool') as Extract<
+      (typeof items)[number],
+      { kind: 'tool' }
+    >[];
+    expect(tools[0]).toMatchObject({ toolCallId: 'tc-1', status: 'cancelled' });
+    expect(tools[1]).toMatchObject({ toolCallId: 'tc-2', status: 'done' });
+  });
+
   it('ignores assistant-end without an assistant item', () => {
     let items = createTranscript();
     items = transcriptReducer(items, { type: 'assistant-end' });

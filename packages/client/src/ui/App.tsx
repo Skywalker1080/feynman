@@ -32,6 +32,7 @@ const HELP_TEXT = [
   '  Up / Down       Walk command history',
   '  Ctrl+R          Reverse-search history',
   '  Esc             Cancel an in-flight turn',
+  '  Ctrl+C          Cancel an in-flight turn; second press exits',
   '  Tab             Accept a slash-command completion',
   '  Tab             (no slash token) inspect tool cards',
   '  In card view:   Up/Down select, Enter expand/collapse, Tab back',
@@ -48,6 +49,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const [busy, setBusy] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const busyRef = useRef(false);
+  /** Set after the first Ctrl+C while busy — a second press then exits. */
+  const cancelArmedRef = useRef(false);
   const [navActive, setNavActive] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [turnStep, setTurnStep] = useState(0);
@@ -117,6 +120,10 @@ export function App({ api, serverManager, cwd }: AppProps) {
         dispatch({ type: 'error', text: ev.message });
         dispatch({ type: 'fail-running-tools', message: ev.message });
         break;
+      case 'cancelled':
+        dispatch({ type: 'cancel-running-tools' });
+        dispatch({ type: 'system', text: 'Turn cancelled.' });
+        break;
       case 'done':
         dispatch({ type: 'assistant-end' });
         setTurnStartedAt(null);
@@ -146,6 +153,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
       } finally {
         dispatch({ type: 'assistant-end' });
         busyRef.current = false;
+        cancelArmedRef.current = false;
         setBusy(false);
       }
     },
@@ -299,6 +307,26 @@ export function App({ api, serverManager, cwd }: AppProps) {
       dispatch({ type: 'error', text: `Failed to cancel turn: ${(err as Error).message}` });
     });
   }, [api]);
+
+  // Global Ctrl+C handling — first press cancels an in-flight turn, second
+  // press exits; with no turn in flight a single press exits.
+  useInput(
+    (input, key) => {
+      if (!(key.ctrl && input.toLowerCase() === 'c')) return;
+      if (busyRef.current) {
+        if (cancelArmedRef.current) {
+          exit();
+        } else {
+          cancelArmedRef.current = true;
+          cancelTurn();
+          dispatch({ type: 'system', text: 'Cancelling turn… press Ctrl+C again to exit' });
+        }
+      } else {
+        exit();
+      }
+    },
+    { isActive: true },
+  );
 
   if (status === 'connecting') {
     return (

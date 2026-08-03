@@ -32,6 +32,7 @@ describe('presentational components render', () => {
     const out = renderToString(<StatusBar session={session} busy={false} theme={theme} />);
     expect(out).toContain('abc123');
     expect(out).toContain('ready');
+    expect(out).toContain('Ctrl+C exit');
   });
 
   it('StatusBar shows a working state when busy', () => {
@@ -59,6 +60,7 @@ describe('presentational components render', () => {
     );
     expect(out).toContain('step 3/25');
     expect(out).toContain('Esc cancel');
+    expect(out).toContain('Ctrl+C cancel');
     expect(out).not.toContain('ready');
   });
 
@@ -175,6 +177,23 @@ describe('ToolCard', () => {
     );
     expect(out).toContain('✗');
     expect(out).toContain('edit failed');
+  });
+
+  it('shows a cancelled state when the turn was aborted', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="run_terminal"
+        args={{ command: 'sleep 100' }}
+        argsSummary="sleep 100"
+        status="cancelled"
+        startedAt={1000}
+        expanded={false}
+        focused={false}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('◼');
+    expect(out).toContain('cancelled');
   });
 
   it('renders a colored diff view for edit when expanded', () => {

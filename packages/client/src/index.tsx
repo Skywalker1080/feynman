@@ -79,7 +79,11 @@ async function main(): Promise<void> {
   const api = new ApiClient(serverManager.baseUrl);
 
   if (useTui) {
-    render(<App api={api} serverManager={serverManager} cwd={process.cwd()} />);
+    // Ctrl+C is handled by the App itself (cancel in-flight turn, exit on a
+    // second press) — so Ink must not exit on it by default.
+    render(<App api={api} serverManager={serverManager} cwd={process.cwd()} />, {
+      exitOnCtrlC: false,
+    });
     return;
   }
 

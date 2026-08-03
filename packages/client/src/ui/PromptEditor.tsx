@@ -135,6 +135,9 @@ export function PromptEditor({
 
   useInput(
     (input, key) => {
+      if (key.ctrl && input.toLowerCase() === 'c') {
+        return; // handled globally by App (cancel turn / exit)
+      }
       if (search) {
         handleSearchInput(input, key);
         return;

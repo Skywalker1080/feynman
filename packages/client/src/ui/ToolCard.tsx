@@ -67,7 +67,7 @@ export function ToolCard(props: ToolCardProps) {
 
   const liveElapsed = useMemo(() => {
     if (status === 'done' && elapsedMs !== undefined) return elapsedMs;
-    if (status === 'error') return undefined;
+    if (status === 'error' || status === 'cancelled') return undefined;
     return Date.now() - startedAt;
   }, [status, elapsedMs, startedAt]);
 
@@ -76,10 +76,18 @@ export function ToolCard(props: ToolCardProps) {
       ? SPINNER_FRAMES[frame % SPINNER_FRAMES.length]
       : status === 'done'
         ? '✓'
-        : '✗';
+        : status === 'cancelled'
+          ? '◼'
+          : '✗';
 
   const iconColor =
-    status === 'running' ? theme.warning : status === 'done' ? theme.success : theme.error;
+    status === 'running'
+      ? theme.warning
+      : status === 'done'
+        ? theme.success
+        : status === 'cancelled'
+          ? theme.warning
+          : theme.error;
 
   // For edit / write_file we can render a line diff from the args.
   const diff =
@@ -150,6 +158,7 @@ function collapsedBody(
   error: string | undefined,
 ): string {
   if (status === 'error') return error ?? 'failed';
+  if (status === 'cancelled') return 'cancelled';
   const preview = resultPreview ?? (result ? result.replace(/\n/g, ' ') : '');
   const body = argsSummary ? `${argsSummary}${preview ? ` — ${preview}` : ''}` : preview;
   return body || 'running…';

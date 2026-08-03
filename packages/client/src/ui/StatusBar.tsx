@@ -59,7 +59,7 @@ export function StatusBar({
     parts.push('ready');
   }
 
-  parts.push('Ctrl+C exit');
+  parts.push(busy ? 'Ctrl+C cancel' : 'Ctrl+C exit');
 
   return (
     <Box justifyContent="space-between" borderStyle="round" borderColor={theme.accent} paddingX={1}>
