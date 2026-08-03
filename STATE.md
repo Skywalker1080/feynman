@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-02 (client rebuilt as ESM Ink TUI — M1 shell done, interactive TTY check pending)
+**Last updated:** 2026-08-03 (ticket #2 server event-contract upgrade — verified: all tests green, committed)
 
 ---
 
@@ -51,6 +51,59 @@ Vercel AI SDK.
 | v1 scope doc | ✅ `docs/terminal-coding-agent-v1-scope.md` — all v1 success criteria implemented |
 | **TUI shell (M1, ticket #1)** | ✅ **Built** — Ink 7 + React 19 full-screen TUI (header/transcript/editor/statusbar), multi-line prompt editor (Enter submit, Shift+Enter newline, ↑/↓ history, Ctrl+R search), slash autocomplete, theme tokens w/ `NO_COLOR`, non-TTY/`--plain` fallback. **Interactive TTY run pending owner verification** |
 | Client package | ⚠️ Rebuilt as **ESM** (`"type": "module"`) — Ink 7 is ESM-only; CJS bundling impossible (top-level await). `eventsource-parser`/Ink/React resolve from `node_modules` at runtime |
+| **Server event-contract upgrade (ticket #2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03. See §3a |
+
+### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
+
+**Goal:** additive SSE contract: correlation `id` on `tool-call`/`tool-result`, new `step-start`/
+`status`/`usage`/`cancelled` events, `POST /sessions/:id/cancel`, kill hung `run_terminal`. Backwards
+compatible with the plain client (verified: `client/src/render.ts` `StreamRenderer` has no `default`
+case → ignores new event types; only existing fields are read).
+
+**Implemented (committed):**
+- `packages/types/src/index.ts` — `SSEEvent` now: `tool-call`/`tool-result` carry `id` (correlation);
+  new `step-start { step }`, `status { status: AgentStatus }`, `usage { usage: TurnUsage }`,
+  `cancelled { reason? }`; added `TurnUsage` (prompt/completion/total tokens, optional `cost`,
+  `model`, `elapsedMs`), `AgentStatus` union, `CancelTurnResponse`.
+- `packages/server/src/tools/registry.ts` — **root-cause fix**: `getAISDKTools()` now returns
+  `AISDKTools = Record<string, Tool<any, string> & { execute: (args, options) => PromiseLike<string> }>`
+  (required `execute`) instead of `Record<string, CoreTool>`. `CoreTool = Tool<any,any>` has *optional*
+  `execute`, which made the AI SDK's `ToolResultUnion` conditional type resolve to `never`, stripping
+  `tool-result` from `fullStream`'s union → the 3 pre-existing `session-loop.ts` TS2678/TS2339 errors.
+  **This fix verified**: server typecheck now clean for session-loop.
+- `packages/server/src/loop/session-loop.ts` — per-session `AbortController` map + `cancelTurn()`;
+  `abortSignal` passed to `streamText`; maps `toolCallId → id`; emits `step-start`/`status`
+  (connecting→streaming→tool-running→done/cancelled)/`usage` (cumulative tokens + cost + model +
+  elapsed)/`cancelled`; AbortError caught → emits `cancelled` + `done`, no error persistence.
+- `packages/server/src/tools/run-terminal.ts` — `execute(args, options?)` honors `options.abortSignal`
+  → `killProcessTree()` (`taskkill /T /F` on win32, `process.kill(-pid)` POSIX); single-settle guard.
+- `packages/server/src/routes/sessions.ts` — `POST /:id/cancel` → `CancelTurnResponse`.
+- `packages/server/src/db/sessions.ts` — added `SessionStore.close()` (releases SQLite file lock;
+  needed for test cleanup + clean shutdown).
+- `packages/server/src/pricing.ts` — `estimateCost(provider, model, usage)`: lmstudio → 0; small
+  OpenRouter table (USD/1M tokens); unknown model → `undefined` (cost omitted).
+
+**Verification state (2026-08-03):** ✅ DONE.
+- `npm run build` passes; `npm test` → **67 tests green** (server: 22 — allowlist 4, tools 8, db 5,
+  session-loop 5; client: 45).
+- `session-loop.test.ts` (5 cases): plain-text status/usage/done, tool-call↔result id correlation +
+  step-start, cancelTurn → cancelled, cancelTurn false on idle, **run_terminal abort** (kills process,
+  settles `[command aborted]` fast, not on the 30s timeout).
+- Typecheck: server + client clean **except the 2 pre-existing `search.ts` TS2367 errors** (deferred
+  to a separate ticket).
+
+**Test gotcha found (ticket #2):** the AI SDK does **no** abort-checking itself — it relies on the
+provider stream to honor `abortSignal`. `simulateReadableStream`'s delay is a plain `setTimeout`
+(not abort-aware), so it **cannot** simulate cancel. The cancel test uses a custom abort-aware
+`ReadableStream` whose pending `pull` rejects with `AbortError` when the signal fires (mirrors a real
+provider mid-stream).
+
+**Known gotcha (ticket #2):** server resolves `@feynman/types` from its **built `dist/`** — after
+editing `packages/types/src/index.ts` you must rebuild it (`npx tsup` in `packages/types`, or
+`npm run build`) or the server typecheck fails against stale types (TS2305 for `CancelTurnResponse`).
+Also: **do not trust scratch-probe tsconfigs** in temp dirs — a `paths`-mapped `ai` probe "passed"
+while the real project failed; root cause only reproduces under real module resolution (the earlier
+sandbox result was a false positive caused by bypassing transitive `@ai-sdk/*` type deps).
 
 ### Verified end-to-end (2026-08-02)
 

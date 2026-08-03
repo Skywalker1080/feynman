@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import type { Request, Response } from 'express';
 import type {
   Config,
+  CancelTurnResponse,
   CreateSessionRequest,
   CreateSessionResponse,
   GetSessionResponse,
@@ -52,6 +53,19 @@ export function createSessionsRouter(
     }
     const messages = sessionStore.getMessages(session.id);
     const response: GetSessionResponse = { session, messages };
+    res.json(response);
+  });
+
+  // POST /sessions/:id/cancel — abort an in-flight turn for this session
+  router.post('/:id/cancel', (req: Request, res: Response) => {
+    const session = sessionStore.getSession(req.params['id']!);
+    if (!session) {
+      res.status(404).json({ error: `Session '${req.params['id']}' not found` });
+      return;
+    }
+
+    const cancelled = sessionLoop.cancelTurn(session.id);
+    const response: CancelTurnResponse = { sessionId: session.id, cancelled };
     res.json(response);
   });
 

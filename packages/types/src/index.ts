@@ -87,10 +87,41 @@ export interface Skill {
 // SSE event envelope — emitted by server, consumed by CLI client
 // ---------------------------------------------------------------------------
 
+/**
+ * Aggregated token + timing usage for one agent turn.
+ * `cost` is a best-effort USD estimate and is omitted when pricing is unknown.
+ */
+export interface TurnUsage {
+  /** Input tokens (prompt) */
+  promptTokens: number;
+  /** Output tokens (completion) */
+  completionTokens: number;
+  /** promptTokens + completionTokens */
+  totalTokens: number;
+  /** Estimated cost in USD (best-effort; omitted when unknown) */
+  cost?: number;
+  /** Model identifier used for this turn */
+  model: string;
+  /** Wall-clock duration of the turn in milliseconds */
+  elapsedMs: number;
+}
+
+/** Coarse lifecycle state of a turn, for StatusBar-style UIs */
+export type AgentStatus =
+  | 'connecting'
+  | 'streaming'
+  | 'tool-running'
+  | 'done'
+  | 'cancelled';
+
 export type SSEEvent =
   | { type: 'text-delta'; delta: string }
-  | { type: 'tool-call'; toolName: string; args: unknown }
-  | { type: 'tool-result'; toolName: string; result: string }
+  | { type: 'tool-call'; id: string; toolName: string; args: unknown }
+  | { type: 'tool-result'; id: string; toolName: string; result: string }
+  | { type: 'step-start'; step: number }
+  | { type: 'status'; status: AgentStatus }
+  | { type: 'usage'; usage: TurnUsage }
+  | { type: 'cancelled'; reason?: string }
   | { type: 'session-start-disclaimer'; message: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
@@ -113,6 +144,13 @@ export interface CreateSessionResponse {
 
 export interface SendMessageRequest {
   message: string;
+}
+
+/** Response for POST /sessions/:id/cancel */
+export interface CancelTurnResponse {
+  sessionId: string;
+  /** Whether an in-flight turn was found and aborted */
+  cancelled: boolean;
 }
 
 export interface ListSessionsResponse {

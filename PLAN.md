@@ -3,7 +3,7 @@
 > Living plan for the Feynman coding agent. Progress is ticked `[x]` as items are completed.
 > Success criteria for the current phase live at the top. Companion file: `STATE.md`.
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-03
 
 ---
 
@@ -59,8 +59,9 @@ issues #1–#9, all labelled `ready-for-agent`):
 - [ ] **#1 TUI shell (M1)** — Ink full-screen layout, prompt editor (multi-line, history, Ctrl+R),
       slash autocomplete, streamed text, theme tokens, non-TTY fallback.
       *(built 2026-08-02 — 45 client tests + build + typecheck green; awaiting interactive TTY run)*.
-- [ ] **#2 Server event-contract upgrade** — correlation ids, `step-start`/`status`/`usage`/`cancelled`
+- [x] **#2 Server event-contract upgrade** — correlation ids, `step-start`/`status`/`usage`/`cancelled`
       events, cancel endpoint, kill for `run_terminal`. Backwards compatible.
+      *(done + verified 2026-08-03 — 67 tests green incl. run_terminal abort; committed; see STATE.md §3a)*.
 - [ ] **#3 ToolCards (M2)** — collapsible tool cards w/ spinner/expand/diff; parallel-call correlation.
 - [ ] **#4 StatusBar live usage (M2)** — live tokens/cost, step N/max, elapsed, provider/model.
 - [ ] **#5 Cancel (M2)** — Ctrl+C aborts generation; second Ctrl+C exits; kill hung tool runs.

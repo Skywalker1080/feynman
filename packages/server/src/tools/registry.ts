@@ -1,5 +1,5 @@
 import { tool } from 'ai';
-import type { CoreTool } from 'ai';
+import type { Tool, ToolExecutionOptions } from 'ai';
 import type { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -18,8 +18,23 @@ export interface AgentTool<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
   /** Zod schema for input validation + JSON Schema generation */
   schema: TSchema;
   /** Executor — must return a string result (surfaced to the model as tool output) */
-  execute: (args: z.infer<TSchema>) => Promise<string>;
+  execute: (args: z.infer<TSchema>, options?: ToolExecutionOptions) => Promise<string>;
 }
+
+/**
+ * Shape of tools handed to `streamText`.
+ *
+ * `execute` is kept REQUIRED here (matching what `tool()` returns) instead of
+ * widening to `CoreTool = Tool<any, any>`, whose optional `execute` causes the
+ * AI SDK's `ToolResultUnion` conditional type to resolve to `never` — which
+ * would strip `tool-result` from `fullStream`'s discriminated union.
+ */
+export type AISDKTools = Record<
+  string,
+  Tool<any, string> & {
+    execute: (args: any, options: ToolExecutionOptions) => PromiseLike<string>;
+  }
+>;
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -36,8 +51,8 @@ export class ToolRegistry {
    * Returns tools in the Vercel AI SDK format, ready to pass into `streamText`.
    * Each tool has an `execute` function so the SDK auto-runs them during multi-step.
    */
-  getAISDKTools(): Record<string, CoreTool> {
-    const result: Record<string, CoreTool> = {};
+  getAISDKTools(): AISDKTools {
+    const result: AISDKTools = {};
     for (const [name, agentTool] of this.tools) {
       result[name] = tool({
         description: agentTool.description,

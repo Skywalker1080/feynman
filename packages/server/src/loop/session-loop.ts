@@ -1,7 +1,8 @@
-import { streamText, type CoreMessage, type LanguageModel } from 'ai';
+import { streamText, type CoreMessage, type LanguageModel, type LanguageModelUsage } from 'ai';
 import type { Config, SSEEvent, Message } from '@feynman/types';
 import { checkAllowlist } from '../allowlist';
 import { composeSystemPrompt } from '../prompt/composer';
+import { estimateCost } from '../pricing';
 import type { ToolRegistry } from '../tools/registry';
 import type { SessionStore } from '../db/sessions';
 import type { SkillsDiscovery } from '../skills/discovery';
@@ -23,6 +24,11 @@ type ToolResultRecord = {
   result: unknown;
 };
 
+/** Returns true when an error came from aborting the turn via an AbortController */
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === 'AbortError';
+}
+
 // ---------------------------------------------------------------------------
 // SessionLoop
 // ---------------------------------------------------------------------------
@@ -38,8 +44,14 @@ type ToolResultRecord = {
  *   5. Call streamText with tools + maxSteps (SDK handles the full agentic loop)
  *   6. Stream SSE events to caller as they arrive (via fullStream)
  *   7. Persist each step's tool calls / results / text via onStepFinish
+ *
+ * Cancellation: each in-flight turn registers an AbortController keyed by
+ * session id. `cancelTurn` aborts it, which surfaces as an AbortError in the
+ * stream loop and emits a `cancelled` SSE event.
  */
 export class SessionLoop {
+  private readonly activeTurns = new Map<string, AbortController>();
+
   constructor(
     private readonly config: Config,
     private readonly toolRegistry: ToolRegistry,
@@ -47,6 +59,14 @@ export class SessionLoop {
     private readonly skillsDiscovery: SkillsDiscovery,
     private readonly getModel: () => LanguageModel,
   ) {}
+
+  /** Abort an in-flight turn. Returns false if no turn is running for that session. */
+  cancelTurn(sessionId: string): boolean {
+    const controller = this.activeTurns.get(sessionId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  }
 
   async runTurn(
     sessionId: string,
@@ -91,12 +111,19 @@ export class SessionLoop {
       this.skillsDiscovery.getManifest(),
     );
 
+    const controller = new AbortController();
+    this.activeTurns.set(sessionId, controller);
+    const startedAt = performance.now();
+
     try {
+      onEvent({ type: 'status', status: 'connecting' });
+
       const result = streamText({
         model: this.getModel(),
         system: systemPrompt,
         messages,
         tools: this.toolRegistry.getAISDKTools(),
+        abortSignal: controller.signal,
         // maxSteps drives the full agentic loop — SDK handles tool execution + continuation
         maxSteps: this.config.agent.maxIterations,
         // Persist each completed step to SQLite immediately (no batching)
@@ -132,23 +159,48 @@ export class SessionLoop {
       });
 
       // Stream all events to the caller (SSE / whatever transport)
+      let step = 0;
+      let usage: LanguageModelUsage | undefined;
+
       for await (const chunk of result.fullStream) {
         switch (chunk.type) {
+          case 'step-start':
+            step += 1;
+            onEvent({ type: 'step-start', step });
+            onEvent({ type: 'status', status: 'streaming' });
+            break;
+
           case 'text-delta':
             onEvent({ type: 'text-delta', delta: chunk.textDelta });
             break;
 
           case 'tool-call':
-            onEvent({ type: 'tool-call', toolName: chunk.toolName, args: chunk.args });
+            onEvent({
+              type: 'tool-call',
+              id: chunk.toolCallId,
+              toolName: chunk.toolName,
+              args: chunk.args,
+            });
+            onEvent({ type: 'status', status: 'tool-running' });
             break;
 
           case 'tool-result':
             onEvent({
               type: 'tool-result',
+              id: chunk.toolCallId,
               toolName: chunk.toolName,
               // Truncate long results for the SSE payload — full result is in the model context
               result: String(chunk.result).slice(0, 800),
             });
+            onEvent({ type: 'status', status: 'streaming' });
+            break;
+
+          case 'step-finish':
+            usage = chunk.usage;
+            break;
+
+          case 'finish':
+            usage = chunk.usage;
             break;
 
           case 'error':
@@ -164,8 +216,35 @@ export class SessionLoop {
       }
       this.sessionStore.touchSession(sessionId);
 
+      // Emit aggregated usage for the turn
+      const promptTokens = usage?.promptTokens ?? 0;
+      const completionTokens = usage?.completionTokens ?? 0;
+      onEvent({
+        type: 'usage',
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          cost: estimateCost(session.provider, session.model, {
+            promptTokens,
+            completionTokens,
+          }),
+          model: session.model,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        },
+      });
+
+      onEvent({ type: 'status', status: 'done' });
       onEvent({ type: 'done' });
     } catch (err: unknown) {
+      if (isAbortError(err)) {
+        // Turn was cancelled via cancelTurn — emit cancelled, don't persist as error
+        onEvent({ type: 'status', status: 'cancelled' });
+        onEvent({ type: 'cancelled' });
+        onEvent({ type: 'done' });
+        return;
+      }
+
       const message = err instanceof Error ? err.message : String(err);
 
       // Persist the error so the session record stays coherent
@@ -177,6 +256,8 @@ export class SessionLoop {
       });
 
       onEvent({ type: 'error', message });
+    } finally {
+      this.activeTurns.delete(sessionId);
     }
   }
 

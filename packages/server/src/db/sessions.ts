@@ -11,6 +11,11 @@ type NewMessage = Omit<Message, 'id' | 'created_at'>;
 export class SessionStore {
   constructor(private readonly db: Database.Database) {}
 
+  /** Close the underlying SQLite connection (releases the file lock) */
+  close(): void {
+    this.db.close();
+  }
+
   // -------------------------------------------------------------------------
   // Sessions
   // -------------------------------------------------------------------------
