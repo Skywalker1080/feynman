@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { simulateReadableStream, type ToolExecutionOptions } from 'ai';
 import type { LanguageModelV1, LanguageModelV1StreamPart } from '@ai-sdk/provider';
 import { initDb } from '../db/schema';
@@ -7,8 +7,8 @@ import { SessionLoop } from '../loop/session-loop';
 import { ToolRegistry } from '../tools/registry';
 import { SkillsDiscovery } from '../skills/discovery';
 import { runTerminalTool } from '../tools/run-terminal';
+import { writeFileTool } from '../tools/write-file';
 import type { Config, SSEEvent } from '@feynman/types';
-import { randomUUID } from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -30,8 +30,13 @@ function makeConfig(): Config {
     },
     server: { port: 3721, host: 'localhost' },
     skills: { dir: '.agent/skills' },
-    agent: { maxIterations: 5 },
+    agent: { maxIterations: 5, permissionGate: false },
   };
+}
+
+/** Config with the permission gate switched on. */
+function makePermConfig(): Config {
+  return { ...makeConfig(), agent: { maxIterations: 5, permissionGate: true } };
 }
 
 /**
@@ -293,6 +298,156 @@ describe('SessionLoop', () => {
   it('cancelTurn returns false when no turn is running', async () => {
     const loop = new SessionLoop(makeConfig(), registry, store, skills, () => ({}) as never);
     expect(loop.cancelTurn('no-session')).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Optional permission gate (ticket #7)
+  // -------------------------------------------------------------------------
+
+  const writeCall = (toolCallId: string, file: string): LanguageModelV1StreamPart => ({
+    type: 'tool-call',
+    toolCallType: 'function',
+    toolCallId,
+    toolName: 'write_file',
+    args: JSON.stringify({ path: file, content: 'hi' }),
+  });
+
+  async function waitForPermission(events: SSEEvent[]): Promise<string> {
+    await vi.waitFor(() => {
+      expect(events.some((e) => e.type === 'permission-request')).toBe(true);
+    });
+    const perm = events.find((e) => e.type === 'permission-request') as { id: string } | undefined;
+    expect(perm).toBeDefined();
+    return perm!.id;
+  }
+
+  it('pauses a gated tool until permission is granted (yes)', async () => {
+    const sessionId = 'sess-perm-yes';
+    const outFile = path.join(tmpDir, 'out.txt');
+    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    registry.register(writeFileTool);
+
+    const model = makeFakeModel([
+      toStreamParts([writeCall('call-w', outFile), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+      toStreamParts([{ type: 'text-delta', textDelta: 'Wrote it' }, { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } }]),
+    ]);
+
+    const loop = new SessionLoop(makePermConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    const turn = loop.runTurn(sessionId, 'write a file', (e) => events.push(e));
+    const permId = await waitForPermission(events);
+
+    // Tool is blocked: no result yet, no file written
+    expect(events.some((e) => e.type === 'tool-result')).toBe(false);
+    expect(fs.existsSync(outFile)).toBe(false);
+
+    expect(loop.respondPermission(sessionId, permId, 'yes')).toBe(true);
+    await turn;
+
+    expect(fs.existsSync(outFile)).toBe(true);
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => (e as { delta: string }).delta)
+      .join('');
+    expect(text).toContain('Wrote it');
+  });
+
+  it('refusing permission aborts the call', async () => {
+    const sessionId = 'sess-perm-no';
+    const outFile = path.join(tmpDir, 'out.txt');
+    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    registry.register(writeFileTool);
+
+    const model = makeFakeModel([
+      toStreamParts([writeCall('call-n', outFile), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+      toStreamParts([{ type: 'text-delta', textDelta: 'Denied' }, { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } }]),
+    ]);
+
+    const loop = new SessionLoop(makePermConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    const turn = loop.runTurn(sessionId, 'write a file', (e) => events.push(e));
+    const permId = await waitForPermission(events);
+
+    expect(loop.respondPermission(sessionId, permId, 'no')).toBe(true);
+    await turn;
+
+    expect(fs.existsSync(outFile)).toBe(false);
+    const toolResult = events.find((e) => e.type === 'tool-result') as { result: string } | undefined;
+    expect(toolResult?.result).toContain('Permission denied');
+  });
+
+  it('always persists the allowance across turns in the session', async () => {
+    const sessionId = 'sess-perm-always';
+    const out1 = path.join(tmpDir, 'out1.txt');
+    const out2 = path.join(tmpDir, 'out2.txt');
+    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    registry.register(writeFileTool);
+
+    const model = makeFakeModel([
+      toStreamParts([writeCall('call-a1', out1), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+      toStreamParts([{ type: 'text-delta', textDelta: 'One' }, { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } }]),
+      toStreamParts([writeCall('call-a2', out2), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+      toStreamParts([{ type: 'text-delta', textDelta: 'Two' }, { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } }]),
+    ]);
+
+    const loop = new SessionLoop(makePermConfig(), registry, store, skills, () => model as never);
+
+    const e1: SSEEvent[] = [];
+    const t1 = loop.runTurn(sessionId, 'write 1', (e) => e1.push(e));
+    const permId = await waitForPermission(e1);
+    loop.respondPermission(sessionId, permId, 'always');
+    await t1;
+    expect(fs.existsSync(out1)).toBe(true);
+
+    // Second turn: same tool is auto-approved — no prompt
+    const e2: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'write 2', (e) => e2.push(e));
+    expect(e2.some((e) => e.type === 'permission-request')).toBe(false);
+    expect(fs.existsSync(out2)).toBe(true);
+  });
+
+  it('auto-executes gated tools when the gate is off (default)', async () => {
+    const sessionId = 'sess-perm-off';
+    const outFile = path.join(tmpDir, 'out.txt');
+    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    registry.register(writeFileTool);
+
+    const model = makeFakeModel([
+      toStreamParts([writeCall('call-o', outFile), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+      toStreamParts([{ type: 'text-delta', textDelta: 'Wrote' }, { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } }]),
+    ]);
+
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'write a file', (e) => events.push(e));
+
+    expect(events.some((e) => e.type === 'permission-request')).toBe(false);
+    expect(fs.existsSync(outFile)).toBe(true);
+  });
+
+  it('cancels cleanly when the turn is aborted while waiting for permission', async () => {
+    const sessionId = 'sess-perm-cancel';
+    const outFile = path.join(tmpDir, 'out.txt');
+    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    registry.register(writeFileTool);
+
+    const model = makeFakeModel([
+      toStreamParts([writeCall('call-c', outFile), { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } }]),
+    ]);
+
+    const loop = new SessionLoop(makePermConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    const turn = loop.runTurn(sessionId, 'write a file', (e) => events.push(e));
+    const permId = await waitForPermission(events);
+
+    expect(loop.cancelTurn(sessionId)).toBe(true);
+    await turn;
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain('cancelled');
+    expect(types).not.toContain('error');
+    expect(fs.existsSync(outFile)).toBe(false);
+    expect(permId).toBeDefined();
   });
 });
 

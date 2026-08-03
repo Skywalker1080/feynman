@@ -43,6 +43,8 @@ export interface Config {
   agent: {
     /** Maximum number of tool-call steps per turn before the loop is halted. Default: 25 */
     maxIterations: number;
+    /** When true, `run_terminal` and `write_file` pause for a y/n/always confirmation before running. Default: false */
+    permissionGate: boolean;
   };
 }
 
@@ -120,6 +122,7 @@ export type SSEEvent =
   | { type: 'usage'; usage: TurnUsage }
   | { type: 'cancelled'; reason?: string }
   | { type: 'session-start-disclaimer'; message: string }
+  | { type: 'permission-request'; id: string; toolName: string; args: unknown }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
@@ -148,6 +151,20 @@ export interface CancelTurnResponse {
   sessionId: string;
   /** Whether an in-flight turn was found and aborted */
   cancelled: boolean;
+}
+
+/** Decision a user gives for a permission-gate prompt */
+export type PermissionDecision = 'yes' | 'no' | 'always';
+
+export interface RespondPermissionRequest {
+  toolCallId: string;
+  decision: PermissionDecision;
+}
+
+export interface RespondPermissionResponse {
+  sessionId: string;
+  /** Whether a pending permission request for that tool call was found */
+  found: boolean;
 }
 
 export interface ListSessionsResponse {

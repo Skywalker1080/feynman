@@ -6,6 +6,8 @@ import type {
   GetSkillResponse,
   ListSessionsResponse,
   ListSkillsResponse,
+  PermissionDecision,
+  RespondPermissionResponse,
   SSEEvent,
 } from '@feynman/types';
 
@@ -96,5 +98,23 @@ export class ApiClient {
     }
 
     return (await res.json()) as CancelTurnResponse;
+  }
+
+  async respondPermission(
+    sessionId: string,
+    toolCallId: string,
+    decision: PermissionDecision,
+  ): Promise<RespondPermissionResponse> {
+    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/permission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolCallId, decision }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to respond to permission prompt: ${res.statusText}`);
+    }
+
+    return (await res.json()) as RespondPermissionResponse;
   }
 }

@@ -8,6 +8,8 @@ import type {
   CreateSessionResponse,
   GetSessionResponse,
   ListSessionsResponse,
+  RespondPermissionRequest,
+  RespondPermissionResponse,
   SendMessageRequest,
   SSEEvent,
 } from '@feynman/types';
@@ -67,6 +69,27 @@ export function createSessionsRouter(
     const cancelled = sessionLoop.cancelTurn(session.id);
     const response: CancelTurnResponse = { sessionId: session.id, cancelled };
     res.json(response);
+  });
+
+  // POST /sessions/:id/permission — answer a permission-gate prompt for a tool call
+  router.post('/:id/permission', (req: Request, res: Response) => {
+    const session = sessionStore.getSession(req.params['id']!);
+    if (!session) {
+      res.status(404).json({ error: `Session '${req.params['id']}' not found` });
+      return;
+    }
+
+    const { toolCallId, decision } = req.body as RespondPermissionRequest;
+    if (!toolCallId || !['yes', 'no', 'always'].includes(decision)) {
+      res
+        .status(400)
+        .json({ error: '`toolCallId` and a valid `decision` (yes|no|always) are required' });
+      return;
+    }
+
+    const found = sessionLoop.respondPermission(session.id, toolCallId, decision);
+    const response: RespondPermissionResponse = { sessionId: session.id, found };
+    res.status(found ? 200 : 404).json(response);
   });
 
   // POST /sessions/:id/message — send a message, stream the agent's response via SSE

@@ -36,6 +36,7 @@ const DEFAULTS: Config = {
   },
   agent: {
     maxIterations: 25,
+    permissionGate: false,
   },
 };
 
@@ -134,6 +135,11 @@ export function loadConfig(cwd: string = process.cwd()): Config {
   }
   if (process.env['FEYNMAN_PORT']) {
     merged.server.port = parseInt(process.env['FEYNMAN_PORT'], 10);
+  }
+  if (process.env['FEYNMAN_PERMISSION_GATE']) {
+    merged.agent.permissionGate = ['1', 'true', 'yes'].includes(
+      process.env['FEYNMAN_PERMISSION_GATE'].toLowerCase(),
+    );
   }
 
   return merged;

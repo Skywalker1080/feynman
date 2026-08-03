@@ -70,7 +70,8 @@ issues #1–#9, all labelled `ready-for-agent`):
       *(done + owner-verified 2026-08-03 — 93 tests green, committed; closed)*.
 - [x] **#6 SessionPicker (M3)** — interactive fuzzy `/resume` list from SQLite.
       *(done 2026-08-03 — 115 tests green, committed, closed; see STATE.md §3d)*.
-- [ ] **#7 Optional permission gate (M3)** — y/n/always before destructive tools, default off.
+- [x] **#7 Optional permission gate (M3)** — y/n/always before destructive tools, default off.
+      *(done 2026-08-03 — 132 tests green, committed; see STATE.md §3e)*.
 - [ ] **#8 Plain mode (M3)** — `feynman --plain` + non-TTY auto-fallback for CI/scripts.
 - [ ] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
 

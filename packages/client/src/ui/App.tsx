@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import type { SSEEvent, Session, TurnUsage } from '@feynman/types';
+import type { PermissionDecision, SSEEvent, Session, TurnUsage } from '@feynman/types';
 import type { ApiClient } from '../api';
 import type { ServerManager } from '../server-manager';
 import { parseCommand } from './commands';
@@ -8,6 +8,7 @@ import { Header } from './Header';
 import { Transcript } from './Transcript';
 import { PromptEditor } from './PromptEditor';
 import { SessionPicker } from './SessionPicker';
+import { PermissionPrompt, type PermissionRequest } from './PermissionPrompt';
 import { StatusBar } from './StatusBar';
 import { createTranscript, transcriptReducer } from './conversation';
 import { summarizeArgs } from './tool';
@@ -57,6 +58,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   /** Non-null while the /resume session picker is open. */
   const [pickerSessions, setPickerSessions] = useState<Session[] | null>(null);
+  /** Gated tool calls awaiting a y/n/always answer. Show the first; pop on answer. */
+  const [pendingPermissions, setPendingPermissions] = useState<PermissionRequest[]>([]);
   const [turnStep, setTurnStep] = useState(0);
   const [turnMaxSteps, setTurnMaxSteps] = useState(0);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
@@ -128,6 +131,16 @@ export function App({ api, serverManager, cwd }: AppProps) {
         dispatch({ type: 'cancel-running-tools' });
         dispatch({ type: 'system', text: 'Turn cancelled.' });
         break;
+      case 'permission-request':
+        setPendingPermissions((prev) => [
+          ...prev,
+          {
+            id: ev.id,
+            toolName: ev.toolName,
+            argsSummary: summarizeArgs(ev.toolName, ev.args),
+          },
+        ]);
+        break;
       case 'done':
         dispatch({ type: 'assistant-end' });
         setTurnStartedAt(null);
@@ -158,10 +171,26 @@ export function App({ api, serverManager, cwd }: AppProps) {
         dispatch({ type: 'assistant-end' });
         busyRef.current = false;
         cancelArmedRef.current = false;
+        setPendingPermissions([]);
         setBusy(false);
       }
     },
     [api, handleEvent],
+  );
+
+  const answerPermission = useCallback(
+    (decision: PermissionDecision) => {
+      const current = pendingPermissions[0];
+      if (!current) return;
+      const id = sessionIdRef.current;
+      if (id) {
+        void api.respondPermission(id, current.id, decision).catch((err) => {
+          dispatch({ type: 'error', text: (err as Error).message });
+        });
+      }
+      setPendingPermissions((prev) => prev.slice(1));
+    },
+    [api, pendingPermissions],
   );
 
   const enterNav = useCallback(() => {
@@ -330,7 +359,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
 
   // Global Ctrl+C handling — first press cancels an in-flight turn, second
   // press exits; with no turn in flight a single press exits. Deactivated while
-  // the session picker is open so Ctrl+C closes the picker instead.
+  // the session picker or a permission prompt is open so those own the keys.
   useInput(
     (input, key) => {
       if (!(key.ctrl && input.toLowerCase() === 'c')) return;
@@ -346,7 +375,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
         exit();
       }
     },
-    { isActive: pickerSessions === null },
+    { isActive: pickerSessions === null && pendingPermissions.length === 0 },
   );
 
   if (status === 'connecting') {
@@ -377,7 +406,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
       <PromptEditor
         busy={busy}
         theme={theme}
-        active={!navActive && pickerSessions === null}
+        active={!navActive && pickerSessions === null && pendingPermissions.length === 0}
         onRequestNav={enterNav}
         onSubmit={(text) => void submit(text)}
         onCancel={cancelTurn}
@@ -391,6 +420,14 @@ export function App({ api, serverManager, cwd }: AppProps) {
             void resumeSession(s.id);
           }}
           onClose={() => setPickerSessions(null)}
+        />
+      )}
+      {pendingPermissions.length > 0 && (
+        <PermissionPrompt
+          request={pendingPermissions[0]!}
+          theme={theme}
+          onAnswer={answerPermission}
+          onCancel={cancelTurn}
         />
       )}
       <StatusBar

@@ -1,9 +1,10 @@
 import { streamText, type CoreMessage, type LanguageModel, type LanguageModelUsage } from 'ai';
-import type { Config, SSEEvent, Message } from '@feynman/types';
+import type { Config, PermissionDecision, SSEEvent, Message } from '@feynman/types';
 import { checkAllowlist } from '../allowlist';
+import { PermissionGate, PERMISSION_GATED_TOOLS } from '../permission';
 import { composeSystemPrompt } from '../prompt/composer';
 import { estimateCost } from '../pricing';
-import type { ToolRegistry } from '../tools/registry';
+import type { AISDKTools, ToolRegistry } from '../tools/registry';
 import type { SessionStore } from '../db/sessions';
 import type { SkillsDiscovery } from '../skills/discovery';
 
@@ -26,7 +27,11 @@ type ToolResultRecord = {
 
 /** Returns true when an error came from aborting the turn via an AbortController */
 function isAbortError(err: unknown): boolean {
-  return err instanceof Error && err.name === 'AbortError';
+  if (err instanceof Error && err.name === 'AbortError') return true;
+  // A gated tool rejected because the turn was aborted mid-permission-wait —
+  // the SDK wraps the AbortError in a ToolExecutionError.
+  const cause = (err as { cause?: unknown } | null)?.cause;
+  return cause instanceof Error && cause.name === 'AbortError';
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +56,7 @@ function isAbortError(err: unknown): boolean {
  */
 export class SessionLoop {
   private readonly activeTurns = new Map<string, AbortController>();
+  private readonly gates = new Map<string, PermissionGate>();
 
   constructor(
     private readonly config: Config,
@@ -66,6 +72,54 @@ export class SessionLoop {
     if (!controller) return false;
     controller.abort();
     return true;
+  }
+
+  /** Resolve a pending permission-gate prompt from the client. */
+  respondPermission(sessionId: string, toolCallId: string, decision: PermissionDecision): boolean {
+    const gate = this.gates.get(sessionId);
+    if (!gate) return false;
+    return gate.respond(toolCallId, decision);
+  }
+
+  /** Per-session gate, created lazily so "always" persists across turns. */
+  private getGate(sessionId: string): PermissionGate {
+    let gate = this.gates.get(sessionId);
+    if (!gate) {
+      gate = new PermissionGate(this.config.agent.permissionGate);
+      this.gates.set(sessionId, gate);
+    }
+    return gate;
+  }
+
+  /**
+   * Wrap the registry tools so gated tools ask for permission before running.
+   * Tools are rebuilt each turn, so the per-turn `onEvent` emitter binds cleanly.
+   */
+  private buildTools(sessionId: string, onEvent: (event: SSEEvent) => void): AISDKTools {
+    const tools = this.toolRegistry.getAISDKTools();
+    const gate = this.getGate(sessionId);
+
+    for (const name of PERMISSION_GATED_TOOLS) {
+      const original = tools[name];
+      if (!original) continue;
+      tools[name] = {
+        ...original,
+        execute: async (args, options) => {
+          const decision = await gate.request(
+            options?.toolCallId ?? '',
+            name,
+            args,
+            onEvent,
+            options?.abortSignal,
+          );
+          if (decision === 'no') {
+            return `[Permission denied by user — ${name} was not executed]`;
+          }
+          return original.execute(args, options);
+        },
+      };
+    }
+    return tools;
   }
 
   async runTurn(
@@ -122,7 +176,7 @@ export class SessionLoop {
         model: this.getModel(),
         system: systemPrompt,
         messages,
-        tools: this.toolRegistry.getAISDKTools(),
+        tools: this.buildTools(sessionId, onEvent),
         abortSignal: controller.signal,
         // maxSteps drives the full agentic loop — SDK handles tool execution + continuation
         maxSteps: this.config.agent.maxIterations,
@@ -260,6 +314,8 @@ export class SessionLoop {
       onEvent({ type: 'error', message });
     } finally {
       this.activeTurns.delete(sessionId);
+      // Turn ended while prompts were still pending (error path) — unblock them.
+      this.getGate(sessionId).rejectAll(new Error('turn ended'));
     }
   }
 

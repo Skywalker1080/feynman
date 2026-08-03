@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #6 SessionPicker — done + owner-verified + closed)
+**Last updated:** 2026-08-03 (ticket #7 Optional permission gate — done + committed)
 
 ---
 
@@ -56,6 +56,7 @@ Vercel AI SDK.
 | **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **Cancel in-flight turns (ticket #5, M2)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3c |
 | **SessionPicker (ticket #6, M3)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3d |
+| **Optional permission gate (ticket #7, M3)** | ✅ **DONE** — tests green, live HTTP smoke verified, committed 2026-08-03. See §3e |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -221,6 +222,54 @@ listed from SQLite. Rows show preview, cwd, date, model; typing filters; Enter r
 
 > **Gotcha:** `@feynman/types` is consumed from its built `dist/` — rebuild it after editing
 > `packages/types/src/index.ts` (see ticket #2/#4).
+
+### 3e. Ticket #7 — Optional permission gate (M3, implemented 2026-08-03)
+
+**Goal:** an optional confirmation gate before destructive tools. When enabled, `run_terminal` and
+`write_file` pause for a y/n/always prompt before executing. **Default is off** — v1 ships no gate,
+and enabling it is a config choice (`agent.permissionGate: true` in `~/.feynman/config.json` or a
+project `.agent/config.json`, or the `FEYNMAN_PERMISSION_GATE=true` env var).
+
+**Implemented (committed):**
+- `packages/types/src/index.ts` — `Config.agent.permissionGate: boolean` (default false);
+  new `permission-request` SSE event (`{ id, toolName, args }`); `PermissionDecision`
+  (`yes|no|always`), `RespondPermissionRequest`/`RespondPermissionResponse`.
+- `packages/server/src/permission.ts` (new) — `PermissionGate`: `request()` emits the
+  `permission-request` event and blocks until `respond()` (rejects with AbortError if the turn is
+  cancelled while waiting); an `always` answer remembers the tool name for the session so later
+  calls auto-approve; disabled gate resolves `yes` immediately (behavior unchanged). Gated tools:
+  `PERMISSION_GATED_TOOLS = ['run_terminal', 'write_file']`.
+- `packages/server/src/loop/session-loop.ts` — per-session gate map (survives across turns so
+  "always" persists); `buildTools()` wraps gated tools' `execute` to await `gate.request(...)` and
+  return `[Permission denied by user — <tool> was not executed]` on `no`; `respondPermission()`;
+  `isAbortError()` now also unwraps the SDK's `ToolExecutionError` when its `cause` is an AbortError
+  (so cancelling mid-prompt emits a clean `cancelled`, not an `error`); `finally` rejects any
+  still-pending prompts so a turn can't hang.
+- `packages/server/src/routes/sessions.ts` — `POST /sessions/:id/permission` (`toolCallId` +
+  `decision`): 400 on missing/invalid fields, 404 when the session or pending tool call isn't found.
+- `packages/server/src/config.ts` — default `agent.permissionGate: false` + `FEYNMAN_PERMISSION_GATE`
+  env override (accepts `1|true|yes`).
+- `packages/client/src/api.ts` — `respondPermission(sessionId, toolCallId, decision)`.
+- `packages/client/src/ui/PermissionPrompt.tsx` (new) — boxed y/n/always prompt (`[y]es [n]o
+  [a]lways · Esc cancel`), owns the keyboard while open.
+- `packages/client/src/ui/App.tsx` — handles `permission-request` into a FIFO queue (parallel tool
+  calls answered one at a time); `PromptEditor` and the global Ctrl+C handler are deactivated while a
+  prompt is open; `answerPermission()` sends the decision and pops the queue; queue cleared at turn
+  end.
+
+**Verification state (2026-08-03):** ✅ DONE.
+- `npm run build` passes (3 tasks); `npm test` → **132 tests green** (server: 38 — +10 PermissionGate
+  unit, +5 session-loop permission flows; client: 94 — +2 PermissionPrompt render).
+- Session-loop permission tests: gate on → tool blocked until `yes` (no result, no file written
+  before); `no` → `[Permission denied…]` result + tool not executed; `always` → persists across
+  turns (no prompt on the next turn); gate off (default) → auto-executes, no `permission-request`;
+  cancel while waiting → clean `cancelled` (no `error`, no file written).
+- Typecheck: client clean; server clean except the **pre-existing** `search.ts` TS2367 ×2 (deferred).
+- Lint: clean (0 errors) in both packages.
+- **Live HTTP smoke:** started the fresh server with `FEYNMAN_PERMISSION_GATE=true`;
+  `POST /sessions/:id/permission` → 400 on empty `toolCallId` and on invalid `decision`, 404 on an
+  unknown `toolCallId` (no pending request). Session create/health intact.
+- Interactive TTY verification of the y/n/always prompt in the TUI is pending owner confirmation.
 
 ### Verified end-to-end (2026-08-02)
 
