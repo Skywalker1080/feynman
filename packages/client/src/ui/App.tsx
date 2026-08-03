@@ -7,6 +7,7 @@ import { parseCommand } from './commands';
 import { Header } from './Header';
 import { Transcript } from './Transcript';
 import { PromptEditor } from './PromptEditor';
+import { SessionPicker } from './SessionPicker';
 import { StatusBar } from './StatusBar';
 import { createTranscript, transcriptReducer } from './conversation';
 import { summarizeArgs } from './tool';
@@ -21,7 +22,8 @@ export interface AppProps {
 const HELP_TEXT = [
   'Commands:',
   '  /new            Start a new session in this directory',
-  '  /resume <id>    Resume a previous session',
+  '  /resume         Open the session picker to resume a previous session',
+  '                  (/resume <id> resumes by id directly)',
   '  /skill <name>   Load a skill into the session',
   '  /help           Show this help',
   '  /exit           Exit the CLI',
@@ -53,6 +55,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const cancelArmedRef = useRef(false);
   const [navActive, setNavActive] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  /** Non-null while the /resume session picker is open. */
+  const [pickerSessions, setPickerSessions] = useState<Session[] | null>(null);
   const [turnStep, setTurnStep] = useState(0);
   const [turnMaxSteps, setTurnMaxSteps] = useState(0);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
@@ -199,6 +203,57 @@ export function App({ api, serverManager, cwd }: AppProps) {
     { isActive: navActive },
   );
 
+  const resumeSession = useCallback(
+    async (id: string) => {
+      try {
+        const { session: resumed, messages } = await api.getSession(id);
+        sessionIdRef.current = resumed.id;
+        setSession(resumed);
+        dispatch({ type: 'reset' });
+        for (const m of messages) {
+          if (m.role === 'user' && m.content) {
+            dispatch({ type: 'user', text: m.content });
+          } else if (m.role === 'assistant') {
+            if (m.content) {
+              dispatch({ type: 'assistant-start' });
+              dispatch({ type: 'assistant-delta', delta: m.content });
+              dispatch({ type: 'assistant-end' });
+            }
+            if (m.tool_call_json) {
+              try {
+                const calls = JSON.parse(m.tool_call_json) as Array<{
+                  toolCallId: string;
+                  toolName: string;
+                  args?: unknown;
+                }>;
+                for (const c of calls) {
+                  dispatch({
+                    type: 'tool-call',
+                    toolCallId: c.toolCallId,
+                    toolName: c.toolName,
+                    args: c.args ?? {},
+                    argsSummary: summarizeArgs(c.toolName, c.args),
+                    startedAt: Date.now(),
+                  });
+                  dispatch({
+                    type: 'tool-result',
+                    toolCallId: c.toolCallId,
+                    result: '',
+                  });
+                }
+              } catch {
+                // ignore malformed tool call json
+              }
+            }
+          }
+        }
+      } catch (err) {
+        dispatch({ type: 'error', text: (err as Error).message });
+      }
+    },
+    [api],
+  );
+
   const runCommand = useCallback(
     async (name: string, arg?: string) => {
       switch (name) {
@@ -216,51 +271,16 @@ export function App({ api, serverManager, cwd }: AppProps) {
           break;
         }
         case 'resume': {
-          if (!arg) {
-            dispatch({ type: 'error', text: 'Usage: /resume <session id>' });
+          if (arg) {
+            await resumeSession(arg);
             break;
           }
           try {
-            const { session: resumed, messages } = await api.getSession(arg);
-            sessionIdRef.current = resumed.id;
-            setSession(resumed);
-            dispatch({ type: 'reset' });
-            for (const m of messages) {
-              if (m.role === 'user' && m.content) {
-                dispatch({ type: 'user', text: m.content });
-              } else if (m.role === 'assistant') {
-                if (m.content) {
-                  dispatch({ type: 'assistant-start' });
-                  dispatch({ type: 'assistant-delta', delta: m.content });
-                  dispatch({ type: 'assistant-end' });
-                }
-                if (m.tool_call_json) {
-                  try {
-                    const calls = JSON.parse(m.tool_call_json) as Array<{
-                      toolCallId: string;
-                      toolName: string;
-                      args?: unknown;
-                    }>;
-                    for (const c of calls) {
-                      dispatch({
-                        type: 'tool-call',
-                        toolCallId: c.toolCallId,
-                        toolName: c.toolName,
-                        args: c.args ?? {},
-                        argsSummary: summarizeArgs(c.toolName, c.args),
-                        startedAt: Date.now(),
-                      });
-                      dispatch({
-                        type: 'tool-result',
-                        toolCallId: c.toolCallId,
-                        result: '',
-                      });
-                    }
-                  } catch {
-                    // ignore malformed tool call json
-                  }
-                }
-              }
+            const { sessions } = await api.listSessions();
+            if (sessions.length === 0) {
+              dispatch({ type: 'error', text: 'No past sessions to resume.' });
+            } else {
+              setPickerSessions(sessions);
             }
           } catch (err) {
             dispatch({ type: 'error', text: (err as Error).message });
@@ -285,7 +305,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
           dispatch({ type: 'error', text: `Unknown command: /${name}` });
       }
     },
-    [api, cwd, exit, startTurn],
+    [api, cwd, exit, resumeSession, startTurn],
   );
 
   const submit = useCallback(
@@ -309,7 +329,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
   }, [api]);
 
   // Global Ctrl+C handling — first press cancels an in-flight turn, second
-  // press exits; with no turn in flight a single press exits.
+  // press exits; with no turn in flight a single press exits. Deactivated while
+  // the session picker is open so Ctrl+C closes the picker instead.
   useInput(
     (input, key) => {
       if (!(key.ctrl && input.toLowerCase() === 'c')) return;
@@ -325,7 +346,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
         exit();
       }
     },
-    { isActive: true },
+    { isActive: pickerSessions === null },
   );
 
   if (status === 'connecting') {
@@ -356,11 +377,22 @@ export function App({ api, serverManager, cwd }: AppProps) {
       <PromptEditor
         busy={busy}
         theme={theme}
-        active={!navActive}
+        active={!navActive && pickerSessions === null}
         onRequestNav={enterNav}
         onSubmit={(text) => void submit(text)}
         onCancel={cancelTurn}
       />
+      {pickerSessions !== null && (
+        <SessionPicker
+          sessions={pickerSessions}
+          theme={theme}
+          onSelect={(s) => {
+            setPickerSessions(null);
+            void resumeSession(s.id);
+          }}
+          onClose={() => setPickerSessions(null)}
+        />
+      )}
       <StatusBar
         session={session}
         busy={busy}

@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { Message, Session } from '@feynman/types';
 
-type NewSession = Omit<Session, 'created_at' | 'updated_at'>;
+type NewSession = Omit<Session, 'created_at' | 'updated_at' | 'preview'>;
 type NewMessage = Omit<Message, 'id' | 'created_at'>;
 
 /**
@@ -41,9 +41,17 @@ export class SessionStore {
   }
 
   listSessions(): Session[] {
-    return this.db
-      .prepare('SELECT * FROM sessions ORDER BY updated_at DESC')
-      .all() as Session[];
+    const rows = this.db
+      .prepare(
+        `SELECT s.*,
+                (SELECT m.content FROM messages m
+                  WHERE m.session_id = s.id AND m.role = 'user' AND m.content IS NOT NULL
+                  ORDER BY m.id DESC LIMIT 1) AS preview
+         FROM sessions s
+         ORDER BY s.updated_at DESC`,
+      )
+      .all() as Array<Session & { preview: string | null }>;
+    return rows.map((r) => ({ ...r, preview: r.preview ?? undefined }));
   }
 
   updateSessionTitle(id: string, title: string): void {

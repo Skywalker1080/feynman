@@ -56,6 +56,27 @@ describe('SessionStore', () => {
     expect(list.map((s) => s.id)).toContain('b');
   });
 
+  it('populates preview with the most recent user message', () => {
+    store.createSession({ id: 'prev', cwd: '/tmp', provider: 'lmstudio', model: 'm' });
+    store.appendMessage({ session_id: 'prev', turn_index: 0, role: 'user', content: 'first' });
+    store.appendMessage({
+      session_id: 'prev',
+      turn_index: 0,
+      role: 'assistant',
+      content: 'reply',
+    });
+    store.appendMessage({ session_id: 'prev', turn_index: 1, role: 'user', content: 'second' });
+
+    const listed = store.listSessions();
+    expect(listed[0]?.preview).toBe('second');
+  });
+
+  it('leaves preview undefined when a session has no user messages', () => {
+    store.createSession({ id: 'empty', cwd: '/tmp', provider: 'lmstudio', model: 'm' });
+    const listed = store.listSessions();
+    expect(listed[0]?.preview).toBeUndefined();
+  });
+
   it('appends and retrieves messages in order', () => {
     store.createSession({ id: 'sess', cwd: '/tmp', provider: 'lmstudio', model: 'm' });
 

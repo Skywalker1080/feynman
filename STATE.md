@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #5 Ctrl+C cancel — done + owner-verified + closed)
+**Last updated:** 2026-08-03 (ticket #6 SessionPicker — done, tests green, committed + closed)
 
 ---
 
@@ -55,6 +55,7 @@ Vercel AI SDK.
 | **ToolCards (ticket #3, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **Cancel in-flight turns (ticket #5, M2)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3c |
+| **SessionPicker (ticket #6, M3)** | ✅ **DONE** — tests green, API smoke-tested, committed 2026-08-03, closed. See §3d |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -180,6 +181,43 @@ endpoint) and the transcript shows a cancelled state; a second Ctrl+C exits the 
 - **Owner interactive TTY verification (2026-08-03):** ✅ confirmed — Ctrl+C during a normal turn
   aborts and shows the cancelled state; second Ctrl+C exits; a long `run_terminal` is killed via the
   cancel path; a new message after a cancel starts a fresh turn cleanly. Ticket closed.
+
+### 3d. Ticket #6 — SessionPicker (M3, implemented 2026-08-03)
+
+**Goal:** replace `/resume <raw-id>` with an interactive fuzzy `/resume` picker over past sessions
+listed from SQLite. Rows show preview, cwd, date, model; typing filters; Enter resumes; Esc closes.
+
+**Implemented (committed):**
+- `packages/types/src/index.ts` — `Session` gains optional `preview` (most recent user message).
+- `packages/server/src/db/sessions.ts` — `listSessions()` now LEFT-JOINs the last user message per
+  session as `preview` (single subquery, no schema change). `NewSession` excludes `preview` so
+  `createSession`'s INSERT is unaffected.
+- `packages/client/src/ui/fuzzy.ts` — subsequence `fuzzyScore` (consecutive-run + word-boundary +
+  start bonuses) + `filterSessions` over title/preview/id/cwd/model, best-match first, stable order.
+- `packages/client/src/ui/SessionPicker.tsx` — border-box picker: `resume:` query line, ↑/↓ select,
+  Enter resume, Esc/Ctrl+C close; rows show `preview ?? title`, cwd, relative date, model; caps at 10
+  rows with "+N more"; `formatRelativeTime` helper exported.
+- `packages/client/src/ui/App.tsx` — `/resume` with no arg fetches `listSessions()` and opens the
+  picker (`pickerSessions` state); the replay logic was extracted into a shared `resumeSession(id)`
+  used by both the picker select and the `/resume <id>` fast path; global Ctrl+C is deactivated while
+  the picker is open (picker handles it as close); `PromptEditor` becomes inactive while picking.
+- `packages/client/src/ui/commands.ts` + help text — `/resume` now described as an interactive list.
+
+**Verification state (2026-08-03):** ✅ DONE (owner interactive TTY run still pending).
+- `npm run build` passes (3 tasks); `npm test` → **115 tests green** (server: 24 — +2 `preview` db
+  tests; client: 91 — +12 fuzzy, +8 SessionPicker).
+- Client typecheck + lint clean; server typecheck/lint failures remain the **pre-existing** `search.ts`
+  TS2367 ×2 + `sessions.ts` unused `randomUUID`/`any` ×2 (deferred tickets).
+- **Live API smoke test:** killed the stale server, started the fresh build, `GET /sessions` returned
+  16 real sessions each with a correct `preview` (last user message, e.g. "can you write me a basic
+  python code for binary search"); `GET /sessions/:id` replay path returns full message history.
+- Acceptance: `/resume` opens the picker (was an id-typing/usage error) ✓; rows show preview/cwd/
+  date/model ✓ (component test); fuzzy filters ✓ (unit tests); Enter resumes + replays ✓ (shared
+  `resumeSession` path, unchanged replay logic); Esc closes without switching ✓ (picker handler);
+  many sessions without jank ✓ (server-side SQL + top-10 slice, no per-keystroke fetch).
+
+> **Gotcha:** `@feynman/types` is consumed from its built `dist/` — rebuild it after editing
+> `packages/types/src/index.ts` (see ticket #2/#4).
 
 ### Verified end-to-end (2026-08-02)
 

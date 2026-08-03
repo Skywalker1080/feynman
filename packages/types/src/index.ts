@@ -57,6 +57,8 @@ export interface Session {
   model: string;
   /** Auto-set from first user message (first 60 chars). Optional. */
   title?: string;
+  /** Most recent user message text (server-populated on list, for pickers). Optional. */
+  preview?: string;
 }
 
 export interface Message {

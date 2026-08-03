@@ -8,7 +8,7 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
   { name: 'exit', aliases: ['quit'], description: 'Exit the CLI' },
   { name: 'new', description: 'Start a new session in the current directory' },
-  { name: 'resume', argHint: '<id>', description: 'Resume a previous session' },
+  { name: 'resume', description: 'Resume a previous session (interactive list)' },
   { name: 'skill', argHint: '<name>', description: 'Load a skill into the session' },
   { name: 'help', description: 'Show commands and keybindings' },
 ];
