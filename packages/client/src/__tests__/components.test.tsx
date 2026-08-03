@@ -123,6 +123,45 @@ describe('presentational components render', () => {
     );
     expect(out).toBe('');
   });
+
+  it('Transcript highlights code fences in assistant text', () => {
+    const items: TranscriptItem[] = [
+      {
+        kind: 'assistant',
+        id: 1,
+        text: 'Here is some code:\n```js\nconst a = 1;\n```',
+        streaming: false,
+      },
+    ];
+    const out = renderToString(
+      <Transcript items={items} theme={theme} navActive={false} selectedToolCallId={null} />,
+    );
+    expect(out).toContain('const a = 1;');
+    expect(out).toContain('Here is some code:');
+  });
+
+  it('Transcript virtualizes long transcripts with an overflow indicator', () => {
+    const items: TranscriptItem[] = Array.from({ length: 10 }, (_, i) => ({
+      kind: 'assistant',
+      id: i + 1,
+      text: `msg ${i + 1}`,
+      streaming: false,
+    }));
+    const out = renderToString(
+      <Transcript
+        items={items}
+        theme={theme}
+        navActive={false}
+        selectedToolCallId={null}
+        columns={80}
+        availableRows={6}
+      />,
+    );
+    expect(out).toContain('↑ 7 older');
+    expect(out).not.toContain('msg 3');
+    expect(out).toContain('msg 8');
+    expect(out).toContain('msg 10');
+  });
 });
 
 describe('ToolCard', () => {

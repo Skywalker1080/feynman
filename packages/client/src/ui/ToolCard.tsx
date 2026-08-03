@@ -42,6 +42,8 @@ interface ToolCardProps {
   expanded: boolean;
   focused: boolean;
   theme: Theme;
+  /** Shared spinner frame from the transcript (parallel cards stay in sync). */
+  frame?: number;
 }
 
 export function ToolCard(props: ToolCardProps) {
@@ -58,12 +60,14 @@ export function ToolCard(props: ToolCardProps) {
     expanded,
     focused,
     theme,
+    frame: parentFrame,
   } = props;
 
-  const { frame } = useAnimation({
+  const { frame: localFrame } = useAnimation({
     interval: 80,
-    isActive: status === 'running',
+    isActive: parentFrame === undefined && status === 'running',
   });
+  const frame = parentFrame ?? localFrame;
 
   const liveElapsed = useMemo(() => {
     if (status === 'done' && elapsedMs !== undefined) return elapsedMs;

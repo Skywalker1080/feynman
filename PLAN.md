@@ -74,7 +74,8 @@ issues #1–#9, all labelled `ready-for-agent`):
       *(done 2026-08-03 — 132 tests green, committed; see STATE.md §3e)*.
 - [x] **#8 Plain mode (M3)** — `feynman --plain` + non-TTY auto-fallback for CI/scripts.
       *(done 2026-08-03 — 134 tests green, committed; see STATE.md §3f)*.
-- [ ] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
+- [x] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
+      *(done 2026-08-03 — 161 tests green, committed; see STATE.md §3g)*.
 
 Ordering: #1 and #2 run first (no blockers, parallelizable); #3–#5 depend on both; #6–#8 on #1;
 #9 on #3 + #4.

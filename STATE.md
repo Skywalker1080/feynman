@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #8 Plain mode — done + committed)
+**Last updated:** 2026-08-03 (ticket #9 TUI polish — done + committed)
 
 ---
 
@@ -58,6 +58,7 @@ Vercel AI SDK.
 | **SessionPicker (ticket #6, M3)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3d |
 | **Optional permission gate (ticket #7, M3)** | ✅ **DONE** — tests green, live HTTP smoke verified, committed 2026-08-03. See §3e |
 | **Plain mode / non-TTY fallback (ticket #8, M3)** | ✅ **DONE** — tests green, piped non-TTY multi-tool turn verified live, committed 2026-08-03. See §3f |
+| **TUI polish (ticket #9, M4)** | ✅ **DONE** — syntax highlighting + virtualized transcript + parallel-render cleanup; tests green, committed 2026-08-03. See §3g |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -303,6 +304,46 @@ hang on the TUI.
   - `--plain` with a piped prompt → same line-streaming path, forced.
 - **Owner interactive TTY verification (2026-08-03):** ✅ confirmed — `feynman --plain` inside a
   real TTY runs the readline line-streaming REPL (no Ink TUI). Ticket closed.
+
+### 3g. Ticket #9 — TUI polish: syntax highlighting + virtualization (M4, implemented 2026-08-03)
+
+**Goal:** performance + fidelity polish, purely additive: syntax-highlight code blocks in
+streamed assistant text, virtualize the transcript so long sessions stay responsive, and clean
+up parallel-tool rendering.
+
+**Implemented (committed):**
+- **Syntax highlighting** — new dependency `highlight.js` (client). `ui/highlight.ts`:
+  `splitCodeBlocks()` parses markdown fenced code blocks (``` / ~~~, language tags, unclosed
+  trailing fences during streaming, alias resolution e.g. `shell`→`bash`); `tokenizeLines()`
+  highlights via hljs (13 registered languages + auto-detect), flattening the HTML output into
+  per-line token runs (colors carry across multi-line spans, HTML entities unescaped);
+  `colorForClass()` maps hljs classes → existing theme roles (accent/success/warning/muted) so
+  NO_COLOR still applies. `ui/HighlightedText.tsx` renders assistant text with a `│`-bordered,
+  token-colored code block per fence. `Transcript` uses it only when the text contains a fence
+  (the common no-code path is unchanged). Ambient d.ts added for `highlight.js/lib/languages/*`.
+- **Virtualization** — `ui/virtualize.ts`: `estimateItemHeight(item, hints)` (margin + wrapped
+  text rows, tool-card header/body/border) and `computeSlice(heights, availableRows)` (window
+  the newest items that fit, always keep the newest). `Transcript` takes optional `columns` /
+  `availableRows` (omitted → no virtualization, so tests unchanged); `App` supplies them from
+  `useStdout` (`stdout.rows - 10` reserved for header/statusbar/editor). Scrolled-out items are
+  replaced by a `↑ N older` indicator row.
+- **Parallel-tool rendering cleanup** — one `useAnimation` in `Transcript` drives all spinner
+  frames; `ToolCard` accepts an optional `frame` prop (falls back to its own hook when used
+  standalone), so parallel running cards stay in sync from a single subscription.
+
+**Verification state (2026-08-03):** ✅ DONE.
+- `npm run build` passes (3 tasks); `npm test` → **161 tests green** (server: 38; client: 123 —
+  +26 over ticket #8: +15 highlight, +9 virtualize, +2 Transcript code-block/overflow render).
+  Client typecheck + lint clean; server typecheck/lint failures remain the pre-existing
+  `search.ts` TS2367 ×2 (deferred).
+- **Colored render verified** via `renderToString` with `FORCE_COLOR=1`: python code renders
+  `def`/`return` cyan (keyword), `# sum` gray (comment), `a, b` gray (params); JSON renders
+  `"ok"` yellow (attr), `true` cyan (literal), `{ } :` gray — all with a gray `│` left border.
+- **Virtualization verified** in component test: 10 items at 6 rows → `↑ 7 older`, oldest
+  omitted, newest visible.
+- Plain-mode regression smoke (`--plain` piped) still works on the rebuilt bundle.
+- Interactive TTY verification of the visual polish (colors, borders, spinner sync, long-session
+  responsiveness) is pending owner confirmation, as with prior M-tickets.
 
 ### Verified end-to-end (2026-08-02)
 

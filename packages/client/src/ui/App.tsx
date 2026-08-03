@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import type { PermissionDecision, SSEEvent, Session, TurnUsage } from '@feynman/types';
 import type { ApiClient } from '../api';
 import type { ServerManager } from '../server-manager';
@@ -44,7 +44,12 @@ const HELP_TEXT = [
 
 export function App({ api, serverManager, cwd }: AppProps) {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const theme = useMemo(() => resolveTheme(), []);
+  /** Rows reserved for header / status bar / prompt editor (+ safety margin). */
+  const transcriptColumns = stdout.columns;
+  const transcriptRows =
+    stdout.rows === undefined ? undefined : Math.max(4, stdout.rows - 10);
   const [items, dispatch] = useReducer(transcriptReducer, undefined, createTranscript);
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'error'>('connecting');
@@ -402,6 +407,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
         theme={theme}
         navActive={navActive}
         selectedToolCallId={selectedTool}
+        columns={transcriptColumns}
+        availableRows={transcriptRows}
       />
       <PromptEditor
         busy={busy}
