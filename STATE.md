@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #6 SessionPicker — done, tests green, committed + closed)
+**Last updated:** 2026-08-03 (ticket #6 SessionPicker — done + owner-verified + closed)
 
 ---
 
@@ -55,7 +55,7 @@ Vercel AI SDK.
 | **ToolCards (ticket #3, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **Cancel in-flight turns (ticket #5, M2)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3c |
-| **SessionPicker (ticket #6, M3)** | ✅ **DONE** — tests green, API smoke-tested, committed 2026-08-03, closed. See §3d |
+| **SessionPicker (ticket #6, M3)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3d |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -203,7 +203,7 @@ listed from SQLite. Rows show preview, cwd, date, model; typing filters; Enter r
   the picker is open (picker handles it as close); `PromptEditor` becomes inactive while picking.
 - `packages/client/src/ui/commands.ts` + help text — `/resume` now described as an interactive list.
 
-**Verification state (2026-08-03):** ✅ DONE (owner interactive TTY run still pending).
+**Verification state (2026-08-03):** ✅ DONE + VERIFIED (owner interactive TTY run).
 - `npm run build` passes (3 tasks); `npm test` → **115 tests green** (server: 24 — +2 `preview` db
   tests; client: 91 — +12 fuzzy, +8 SessionPicker).
 - Client typecheck + lint clean; server typecheck/lint failures remain the **pre-existing** `search.ts`
@@ -211,6 +211,9 @@ listed from SQLite. Rows show preview, cwd, date, model; typing filters; Enter r
 - **Live API smoke test:** killed the stale server, started the fresh build, `GET /sessions` returned
   16 real sessions each with a correct `preview` (last user message, e.g. "can you write me a basic
   python code for binary search"); `GET /sessions/:id` replay path returns full message history.
+- **Owner interactive TTY verification (2026-08-03):** ✅ confirmed — `/resume` opens the fuzzy
+  picker with past sessions (preview/cwd/date/model), typing filters them, Enter resumes + replays
+  the history, Esc closes without switching.
 - Acceptance: `/resume` opens the picker (was an id-typing/usage error) ✓; rows show preview/cwd/
   date/model ✓ (component test); fuzzy filters ✓ (unit tests); Enter resumes + replays ✓ (shared
   `resumeSession` path, unchanged replay logic); Esc closes without switching ✓ (picker handler);
