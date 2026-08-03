@@ -5,10 +5,12 @@ import type { Theme } from './theme';
 export function StatusBar({
   session,
   busy,
+  navActive,
   theme,
 }: {
   session: Session | null;
   busy: boolean;
+  navActive?: boolean;
   theme: Theme;
 }) {
   return (
@@ -16,7 +18,14 @@ export function StatusBar({
       <Text color={theme.muted}>
         ⚛ feynman{session ? ` · ${session.provider}/${session.model} · ${session.id}` : ''}
       </Text>
-      <Text color={busy ? theme.warning : theme.success}>{busy ? 'working…' : 'ready'} · Ctrl+C exit</Text>
+      <Text color={busy ? theme.warning : theme.success}>
+        {navActive
+          ? 'tool cards · ↑/↓ select, Enter toggle, Tab back'
+          : busy
+            ? 'working…'
+            : 'ready'}{' '}
+        · Ctrl+C exit
+      </Text>
     </Box>
   );
 }

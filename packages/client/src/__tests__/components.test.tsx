@@ -4,6 +4,7 @@ import type { Session } from '@feynman/types';
 import { Header } from '../ui/Header';
 import { StatusBar } from '../ui/StatusBar';
 import { Transcript } from '../ui/Transcript';
+import { ToolCard } from '../ui/ToolCard';
 import type { TranscriptItem } from '../ui/conversation';
 import { resolveTheme } from '../ui/theme';
 
@@ -38,15 +39,37 @@ describe('presentational components render', () => {
     expect(out).toContain('working');
   });
 
+  it('StatusBar shows tool-card hint when navigating', () => {
+    const out = renderToString(
+      <StatusBar session={session} busy={false} navActive theme={theme} />,
+    );
+    expect(out).toContain('tool cards');
+  });
+
   it('Transcript renders user, assistant, tool and system rows', () => {
     const items: TranscriptItem[] = [
       { kind: 'user', id: 1, text: 'hello' },
       { kind: 'assistant', id: 2, text: 'hi', streaming: false },
-      { kind: 'tool', id: 3, toolName: 'read_file' },
+      {
+        kind: 'tool',
+        id: 3,
+        toolCallId: 'tc-1',
+        toolName: 'read_file',
+        args: {},
+        argsSummary: 'a.ts',
+        status: 'done',
+        startedAt: 1000,
+        elapsedMs: 5,
+        result: 'line 1',
+        resultPreview: 'line 1',
+        expanded: false,
+      },
       { kind: 'system', id: 4, text: 'note' },
       { kind: 'error', id: 5, text: 'boom' },
     ];
-    const out = renderToString(<Transcript items={items} theme={theme} />);
+    const out = renderToString(
+      <Transcript items={items} theme={theme} navActive={false} selectedToolCallId={null} />,
+    );
     expect(out).toContain('hello');
     expect(out).toContain('hi');
     expect(out).toContain('read_file');
@@ -55,7 +78,101 @@ describe('presentational components render', () => {
   });
 
   it('Transcript renders nothing when empty', () => {
-    const out = renderToString(<Transcript items={[]} theme={theme} />);
+    const out = renderToString(
+      <Transcript items={[]} theme={theme} navActive={false} selectedToolCallId={null} />,
+    );
     expect(out).toBe('');
+  });
+});
+
+describe('ToolCard', () => {
+  it('shows a spinner glyph while running', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="run_terminal"
+        args={{}}
+        argsSummary="npm test"
+        status="running"
+        startedAt={Date.now()}
+        expanded={false}
+        focused={false}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('run_terminal');
+  });
+
+  it('shows a check when done', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="read_file"
+        args={{ path: 'a.ts' }}
+        argsSummary="a.ts"
+        status="done"
+        startedAt={1000}
+        elapsedMs={12}
+        result="file contents here"
+        resultPreview="file contents here"
+        expanded={false}
+        focused={false}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('✓');
+  });
+
+  it('shows a cross when failed', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="edit"
+        args={{}}
+        argsSummary=""
+        status="error"
+        startedAt={1000}
+        error="edit failed"
+        expanded={false}
+        focused={false}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('✗');
+    expect(out).toContain('edit failed');
+  });
+
+  it('renders a colored diff view for edit when expanded', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="edit"
+        args={{ path: 'a.ts', old_str: 'foo', new_str: 'bar' }}
+        argsSummary="a.ts"
+        status="done"
+        startedAt={1000}
+        elapsedMs={5}
+        result="Edited a.ts"
+        expanded
+        focused={false}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('- foo');
+    expect(out).toContain('+ bar');
+  });
+
+  it('shows expand hint only when focused', () => {
+    const out = renderToString(
+      <ToolCard
+        toolName="read_file"
+        args={{}}
+        argsSummary=""
+        status="done"
+        startedAt={1000}
+        elapsedMs={5}
+        result="x"
+        expanded={false}
+        focused
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('expand');
   });
 });

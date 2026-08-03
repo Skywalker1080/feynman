@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import type { SSEEvent, Session } from '@feynman/types';
 import type { ApiClient } from '../api';
 import type { ServerManager } from '../server-manager';
@@ -9,6 +9,7 @@ import { Transcript } from './Transcript';
 import { PromptEditor } from './PromptEditor';
 import { StatusBar } from './StatusBar';
 import { createTranscript, transcriptReducer } from './conversation';
+import { summarizeArgs } from './tool';
 import { resolveTheme } from './theme';
 
 export interface AppProps {
@@ -31,6 +32,8 @@ const HELP_TEXT = [
   '  Up / Down       Walk command history',
   '  Ctrl+R          Reverse-search history',
   '  Tab             Accept a slash-command completion',
+  '  Tab             (no slash token) inspect tool cards',
+  '  In card view:   Up/Down select, Enter expand/collapse, Tab back',
   '',
 ].join('\n');
 
@@ -44,6 +47,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const [busy, setBusy] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const busyRef = useRef(false);
+  const [navActive, setNavActive] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,33 +72,38 @@ export function App({ api, serverManager, cwd }: AppProps) {
     };
   }, [api, serverManager, cwd]);
 
+  const toolItems = useMemo(
+    () =>
+      items.filter((i) => i.kind === 'tool') as Extract<(typeof items)[number], { kind: 'tool' }>[],
+    [items],
+  );
+
+  const toolCallIds = useMemo(() => toolItems.map((t) => t.toolCallId), [toolItems]);
+
   const handleEvent = useCallback((ev: SSEEvent) => {
     switch (ev.type) {
       case 'text-delta':
         dispatch({ type: 'assistant-delta', delta: ev.delta });
         break;
-      case 'tool-call': {
-        const args = JSON.stringify(ev.args);
+      case 'tool-call':
         dispatch({
           type: 'tool-call',
+          toolCallId: ev.id,
           toolName: ev.toolName,
-          argsSummary: args.length > 80 ? `${args.slice(0, 77)}…` : args,
+          args: ev.args,
+          argsSummary: summarizeArgs(ev.toolName, ev.args),
+          startedAt: Date.now(),
         });
         break;
-      }
-      case 'tool-result': {
-        const oneLine = ev.result.replace(/\n/g, ' ');
-        dispatch({
-          type: 'tool-result',
-          resultPreview: oneLine.length > 120 ? `${oneLine.slice(0, 117)}…` : oneLine,
-        });
+      case 'tool-result':
+        dispatch({ type: 'tool-result', toolCallId: ev.id, result: ev.result });
         break;
-      }
       case 'session-start-disclaimer':
         dispatch({ type: 'system', text: ev.message });
         break;
       case 'error':
         dispatch({ type: 'error', text: ev.message });
+        dispatch({ type: 'fail-running-tools', message: ev.message });
         break;
       case 'done':
         dispatch({ type: 'assistant-end' });
@@ -107,12 +117,15 @@ export function App({ api, serverManager, cwd }: AppProps) {
       if (!id || busyRef.current) return;
       busyRef.current = true;
       setBusy(true);
+      setNavActive(false);
+      setSelectedTool(null);
       if (showUser) dispatch({ type: 'user', text: prompt });
       dispatch({ type: 'assistant-start' });
       try {
         await api.sendMessage(id, prompt, handleEvent);
       } catch (err) {
         dispatch({ type: 'error', text: (err as Error).message });
+        dispatch({ type: 'fail-running-tools', message: (err as Error).message });
       } finally {
         dispatch({ type: 'assistant-end' });
         busyRef.current = false;
@@ -120,6 +133,45 @@ export function App({ api, serverManager, cwd }: AppProps) {
       }
     },
     [api, handleEvent],
+  );
+
+  const enterNav = useCallback(() => {
+    if (toolCallIds.length === 0) return;
+    setNavActive(true);
+    setSelectedTool((current) => current ?? toolCallIds[toolCallIds.length - 1] ?? null);
+  }, [toolCallIds]);
+
+  const exitNav = useCallback(() => {
+    setNavActive(false);
+    setSelectedTool(null);
+  }, []);
+
+  useInput(
+    (input, key) => {
+      if (key.tab || key.escape) {
+        exitNav();
+        return;
+      }
+      const currentIndex = toolCallIds.indexOf(selectedTool ?? '');
+      if (key.downArrow) {
+        const next = toolCallIds[Math.min(currentIndex + 1, toolCallIds.length - 1)];
+        if (next) setSelectedTool(next);
+        return;
+      }
+      if (key.upArrow) {
+        const prev = toolCallIds[Math.max(currentIndex - 1, 0)];
+        if (prev) setSelectedTool(prev);
+        return;
+      }
+      if (key.return) {
+        if (selectedTool) dispatch({ type: 'toggle-tool', toolCallId: selectedTool });
+        return;
+      }
+      if (input) {
+        exitNav();
+      }
+    },
+    { isActive: navActive },
   );
 
   const runCommand = useCallback(
@@ -159,8 +211,26 @@ export function App({ api, serverManager, cwd }: AppProps) {
                 }
                 if (m.tool_call_json) {
                   try {
-                    const calls = JSON.parse(m.tool_call_json) as Array<{ toolName: string }>;
-                    for (const c of calls) dispatch({ type: 'tool-call', toolName: c.toolName });
+                    const calls = JSON.parse(m.tool_call_json) as Array<{
+                      toolCallId: string;
+                      toolName: string;
+                      args?: unknown;
+                    }>;
+                    for (const c of calls) {
+                      dispatch({
+                        type: 'tool-call',
+                        toolCallId: c.toolCallId,
+                        toolName: c.toolName,
+                        args: c.args ?? {},
+                        argsSummary: summarizeArgs(c.toolName, c.args),
+                        startedAt: Date.now(),
+                      });
+                      dispatch({
+                        type: 'tool-result',
+                        toolCallId: c.toolCallId,
+                        result: '',
+                      });
+                    }
                   } catch {
                     // ignore malformed tool call json
                   }
@@ -224,9 +294,20 @@ export function App({ api, serverManager, cwd }: AppProps) {
   return (
     <Box flexDirection="column" height="100%">
       {session && <Header cwd={cwd} session={session} theme={theme} />}
-      <Transcript items={items} theme={theme} />
-      <PromptEditor busy={busy} theme={theme} onSubmit={(text) => void submit(text)} />
-      <StatusBar session={session} busy={busy} theme={theme} />
+      <Transcript
+        items={items}
+        theme={theme}
+        navActive={navActive}
+        selectedToolCallId={selectedTool}
+      />
+      <PromptEditor
+        busy={busy}
+        theme={theme}
+        active={!navActive}
+        onRequestNav={enterNav}
+        onSubmit={(text) => void submit(text)}
+      />
+      <StatusBar session={session} busy={busy} navActive={navActive} theme={theme} />
     </Box>
   );
 }

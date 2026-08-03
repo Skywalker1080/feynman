@@ -28,9 +28,19 @@ export interface PromptEditorProps {
   busy: boolean;
   theme: Theme;
   onSubmit: (text: string) => void;
+  /** When false, the editor stops capturing keyboard input (e.g. transcript nav is active). */
+  active?: boolean;
+  /** Called when Tab is pressed with no slash-command token (switch to transcript nav). */
+  onRequestNav?: () => void;
 }
 
-export function PromptEditor({ busy, theme, onSubmit }: PromptEditorProps) {
+export function PromptEditor({
+  busy,
+  theme,
+  onSubmit,
+  active = true,
+  onRequestNav,
+}: PromptEditorProps) {
   const [editor, setEditor] = useState<EditorState>(() => createEditor());
   const [history, setHistory] = useState<History>(() => createHistory());
   const [menuIndex, setMenuIndex] = useState(0);
@@ -120,92 +130,96 @@ export function PromptEditor({ busy, theme, onSubmit }: PromptEditorProps) {
     }
   };
 
-  useInput((input, key) => {
-    if (search) {
-      handleSearchInput(input, key);
-      return;
-    }
-
-    if (key.escape) {
-      if (menuOpen) setMenuDismissed(true);
-      return;
-    }
-
-    if (menuOpen && (key.upArrow || key.downArrow)) {
-      setMenuIndex((i) => {
-        const step = key.upArrow ? -1 : 1;
-        return Math.max(0, Math.min(matches.length - 1, i + step));
-      });
-      return;
-    }
-
-    if (key.tab) {
-      if (menuOpen && matches.length > 0) acceptMatch();
-      else if (token) setMenuDismissed(false);
-      return;
-    }
-
-    if (key.return) {
-      if (key.shift) {
-        edit(insertChar(editor, '\n'));
+  useInput(
+    (input, key) => {
+      if (search) {
+        handleSearchInput(input, key);
         return;
       }
-      if (menuOpen && matches.length > 0) {
-        const exact = matches.some(
-          (c) =>
-            `/${c.name}` === editor.value ||
-            (c.aliases ?? []).some((a) => `/${a}` === editor.value),
-        );
-        if (exact) doSubmit();
-        else acceptMatch();
+
+      if (key.escape) {
+        if (menuOpen) setMenuDismissed(true);
         return;
       }
-      doSubmit();
-      return;
-    }
 
-    if (key.ctrl && input.toLowerCase() === 'r') {
-      setSearch({ query: '', index: 0 });
-      return;
-    }
+      if (menuOpen && (key.upArrow || key.downArrow)) {
+        setMenuIndex((i) => {
+          const step = key.upArrow ? -1 : 1;
+          return Math.max(0, Math.min(matches.length - 1, i + step));
+        });
+        return;
+      }
 
-    if (key.upArrow) {
-      loadHistoryUp();
-      return;
-    }
-    if (key.downArrow) {
-      loadHistoryDown();
-      return;
-    }
-    if (key.leftArrow) {
-      edit(moveLeft(editor));
-      return;
-    }
-    if (key.rightArrow) {
-      edit(moveRight(editor));
-      return;
-    }
-    if (key.home) {
-      edit(moveHome(editor));
-      return;
-    }
-    if (key.end) {
-      edit(moveEnd(editor));
-      return;
-    }
-    if (key.backspace) {
-      edit(deleteBefore(editor));
-      return;
-    }
-    if (key.delete) {
-      edit(deleteAfter(editor));
-      return;
-    }
+      if (key.tab) {
+        if (menuOpen && matches.length > 0) acceptMatch();
+        else if (token) setMenuDismissed(false);
+        else if (onRequestNav) onRequestNav();
+        return;
+      }
 
-    if (input) {
-      edit(insertChar(editor, input));
-    }
-  });
+      if (key.return) {
+        if (key.shift) {
+          edit(insertChar(editor, '\n'));
+          return;
+        }
+        if (menuOpen && matches.length > 0) {
+          const exact = matches.some(
+            (c) =>
+              `/${c.name}` === editor.value ||
+              (c.aliases ?? []).some((a) => `/${a}` === editor.value),
+          );
+          if (exact) doSubmit();
+          else acceptMatch();
+          return;
+        }
+        doSubmit();
+        return;
+      }
+
+      if (key.ctrl && input.toLowerCase() === 'r') {
+        setSearch({ query: '', index: 0 });
+        return;
+      }
+
+      if (key.upArrow) {
+        loadHistoryUp();
+        return;
+      }
+      if (key.downArrow) {
+        loadHistoryDown();
+        return;
+      }
+      if (key.leftArrow) {
+        edit(moveLeft(editor));
+        return;
+      }
+      if (key.rightArrow) {
+        edit(moveRight(editor));
+        return;
+      }
+      if (key.home) {
+        edit(moveHome(editor));
+        return;
+      }
+      if (key.end) {
+        edit(moveEnd(editor));
+        return;
+      }
+      if (key.backspace) {
+        edit(deleteBefore(editor));
+        return;
+      }
+      if (key.delete) {
+        edit(deleteAfter(editor));
+        return;
+      }
+
+      if (input) {
+        edit(insertChar(editor, input));
+      }
+    },
+    { isActive: active },
+  );
 
   const caret = `${editor.value.slice(0, editor.cursor)}█${editor.value.slice(editor.cursor)}`;
 
