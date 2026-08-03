@@ -35,6 +35,25 @@ npx feynman
    - *"Find all TODO comments across the codebase"*
    - *"Add a unit test for user authentication"*
 
+### Plain mode (scripting & CI)
+
+When `feynman` detects that stdout is not a TTY (piped/redirected, e.g. in CI), it
+automatically falls back to plain line-streaming output instead of the interactive TUI.
+You can also force this explicitly:
+
+```bash
+feynman --plain
+```
+
+Plain mode is a readline REPL that streams text and tool output line by line, so scripts
+and test harnesses never hang on the TUI. Combine it with a pipe to run one-shot prompts:
+
+```bash
+echo "List the files in this repo" | feynman --plain
+```
+
+Run `feynman --help` for all CLI flags.
+
 ---
 
 ## 🏗️ Architecture & Packages

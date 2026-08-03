@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldUseTUI, requestedPlain } from '../ui/tty';
+import { shouldUseTUI, requestedPlain, requestedHelp, USAGE_TEXT } from '../ui/tty';
 
 describe('shouldUseTUI', () => {
   it('uses the TUI when both streams are TTYs', () => {
@@ -24,5 +24,21 @@ describe('requestedPlain', () => {
     expect(requestedPlain(['node', 'feynman', '--plain'])).toBe(true);
     expect(requestedPlain(['node', 'feynman', '-p'])).toBe(true);
     expect(requestedPlain(['node', 'feynman'])).toBe(false);
+  });
+});
+
+describe('requestedHelp', () => {
+  it('detects --help and -h', () => {
+    expect(requestedHelp(['node', 'feynman', '--help'])).toBe(true);
+    expect(requestedHelp(['node', 'feynman', '-h'])).toBe(true);
+    expect(requestedHelp(['node', 'feynman', '--plain'])).toBe(false);
+  });
+});
+
+describe('USAGE_TEXT', () => {
+  it('documents --plain and the non-TTY fallback', () => {
+    expect(USAGE_TEXT).toContain('--plain');
+    expect(USAGE_TEXT).toContain('--help');
+    expect(USAGE_TEXT).toMatch(/stdout is not a TTY/);
   });
 });

@@ -16,3 +16,19 @@ export function shouldUseTUI(opts: TUIOptions = {}): boolean {
 export function requestedPlain(argv: string[]): boolean {
   return argv.includes('--plain') || argv.includes('-p');
 }
+
+/** True when the invocation asked for `--help` / `-h`. */
+export function requestedHelp(argv: string[]): boolean {
+  return argv.includes('--help') || argv.includes('-h');
+}
+
+export const USAGE_TEXT = `Usage: feynman [options]
+
+Local, terminal-based coding agent (LM Studio + OpenRouter).
+
+Options:
+  -p, --plain   Force plain line-streaming output instead of the TUI.
+                Useful for scripting and CI. Automatically enabled when
+                stdout is not a TTY (piped / redirected).
+  -h, --help    Show this help text.
+`;

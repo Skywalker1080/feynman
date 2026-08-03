@@ -72,7 +72,8 @@ issues #1–#9, all labelled `ready-for-agent`):
       *(done 2026-08-03 — 115 tests green, committed, closed; see STATE.md §3d)*.
 - [x] **#7 Optional permission gate (M3)** — y/n/always before destructive tools, default off.
       *(done 2026-08-03 — 132 tests green, committed; see STATE.md §3e)*.
-- [ ] **#8 Plain mode (M3)** — `feynman --plain` + non-TTY auto-fallback for CI/scripts.
+- [x] **#8 Plain mode (M3)** — `feynman --plain` + non-TTY auto-fallback for CI/scripts.
+      *(done 2026-08-03 — 134 tests green, committed; see STATE.md §3f)*.
 - [ ] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
 
 Ordering: #1 and #2 run first (no blockers, parallelizable); #3–#5 depend on both; #6–#8 on #1;

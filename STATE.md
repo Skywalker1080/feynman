@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #7 Optional permission gate — done + committed)
+**Last updated:** 2026-08-03 (ticket #8 Plain mode — done + committed)
 
 ---
 
@@ -57,6 +57,7 @@ Vercel AI SDK.
 | **Cancel in-flight turns (ticket #5, M2)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3c |
 | **SessionPicker (ticket #6, M3)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3d |
 | **Optional permission gate (ticket #7, M3)** | ✅ **DONE** — tests green, live HTTP smoke verified, committed 2026-08-03. See §3e |
+| **Plain mode / non-TTY fallback (ticket #8, M3)** | ✅ **DONE** — tests green, piped non-TTY multi-tool turn verified live, committed 2026-08-03. See §3f |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -270,6 +271,38 @@ project `.agent/config.json`, or the `FEYNMAN_PERMISSION_GATE=true` env var).
   `POST /sessions/:id/permission` → 400 on empty `toolCallId` and on invalid `decision`, 404 on an
   unknown `toolCallId` (no pending request). Session create/health intact.
 - Interactive TTY verification of the y/n/always prompt in the TUI is pending owner confirmation.
+
+### 3f. Ticket #8 — Plain mode / non-TTY fallback (M3, implemented 2026-08-03)
+
+**Goal:** guarantee `feynman` works with no TTY. `feynman --plain` forces line-streaming
+output (scripting/CI), and non-TTY stdout auto-falls back to it so pipes/test harnesses never
+hang on the TUI.
+
+**Implemented (committed):**
+- The plain-mode plumbing was already in place from ticket #1 (`runPlain` readline REPL +
+  `StreamRenderer`, `shouldUseTUI()` in `client/src/ui/tty.ts`, dispatched from `index.tsx`).
+  This ticket closed the gaps and verified it end-to-end.
+- `packages/client/src/ui/tty.ts` — new `requestedHelp(argv)` (`--help`/`-h`) and `USAGE_TEXT`
+  documenting `-p/--plain`, the non-TTY auto-fallback, and `-h/--help`.
+- `packages/client/src/index.tsx` — `main()` checks `--help` first → prints usage, exits 0.
+- `README.md` — new "Plain mode (scripting & CI)" section under Quick Start (explicit
+  `feynman --plain` + one-shot `echo "..." | feynman --plain` example + non-TTY note).
+
+**Verification state (2026-08-03):** ✅ DONE.
+- `npm run build` passes (3 tasks); `npm test` → **134 tests green** (server: 38, client: 96 —
+  +2 `requestedHelp` + usage-text tests).
+- Typecheck: client clean; server failures remain the **pre-existing** `search.ts` TS2367 ×2 (deferred).
+- Lint: clean (0 errors) in both packages.
+- **Live smokes (real OpenRouter provider):**
+  - `feynman --help` / `-h` → usage text printed, exit 0.
+  - **Piped non-TTY auto-fallback** (`echo "<multi-tool prompt>" | node dist/index.js` from a
+    scratch project): no TUI/Ink output; auto-spawned the server; ran a **full multi-tool turn**
+    (`list_dir` + `read_file` tool-call/result lines) and streamed a correct final answer;
+    clean exit after stdin EOF. This satisfies the "stable for a full multi-tool turn" + "piped
+    non-TTY auto-fallback" criteria.
+  - `--plain` with a piped prompt → same line-streaming path, forced.
+- Interactive `feynman --plain` inside a real TTY uses the identical `runPlain` path (readline
+  REPL pre-dates the TUI) — pending owner confirmation as with prior M-tickets.
 
 ### Verified end-to-end (2026-08-02)
 

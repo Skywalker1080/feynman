@@ -4,7 +4,7 @@ import { ServerManager } from './server-manager';
 import { ApiClient } from './api';
 import { StreamRenderer } from './render';
 import { App } from './ui/App';
-import { requestedPlain, shouldUseTUI } from './ui/tty';
+import { requestedHelp, requestedPlain, shouldUseTUI, USAGE_TEXT } from './ui/tty';
 import { handleResumeCommand } from './commands/resume';
 import { handleNewCommand } from './commands/new';
 import { handleSkillCommand } from './commands/skill';
@@ -72,7 +72,12 @@ async function runPlain(api: ApiClient, initialSessionId: string, cwd: string): 
 }
 
 async function main(): Promise<void> {
-  const plain = requestedPlain(process.argv);
+  const argv = process.argv;
+  if (requestedHelp(argv)) {
+    console.log(USAGE_TEXT);
+    process.exit(0);
+  }
+  const plain = requestedPlain(argv);
   const useTui = shouldUseTUI({ plain });
 
   const serverManager = new ServerManager(undefined, undefined, { quiet: useTui });
