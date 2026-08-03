@@ -76,6 +76,8 @@ issues #1–#9, all labelled `ready-for-agent`):
       *(done 2026-08-03 — 134 tests green, committed; see STATE.md §3f)*.
 - [x] **#9 TUI polish (M4)** — syntax highlighting, virtualized transcript, parallel-render cleanup.
       *(done 2026-08-03 — 161 tests green, committed; see STATE.md §3g)*.
+- [x] **CLI TUI UI rebuild** — fixed top stats bar (removed duration), middle scrollable chat thread (PageUp/PageDown, oldest-at-top), fixed bottom shortcuts bar, dark grey borders (`#444444`), blue ASCII welcome banner.
+      *(done 2026-08-03 — built + verified; see STATE.md §3h)*.
 
 Ordering: #1 and #2 run first (no blockers, parallelizable); #3–#5 depend on both; #6–#8 on #1;
 #9 on #3 + #4.

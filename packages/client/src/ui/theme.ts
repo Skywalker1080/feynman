@@ -1,6 +1,7 @@
 /** Named colors used across the UI. `undefined` means "no color" (NO_COLOR). */
 export interface Theme {
   accent: string | undefined;
+  border: string | undefined;
   muted: string | undefined;
   success: string | undefined;
   error: string | undefined;
@@ -24,6 +25,7 @@ export function resolveTheme(opts: ThemeOptions = {}): Theme {
   const c = (color: string): string | undefined => (disabled ? undefined : color);
   return {
     accent: c('cyan'),
+    border: c('#444444'),
     muted: c('gray'),
     success: c('green'),
     error: c('red'),

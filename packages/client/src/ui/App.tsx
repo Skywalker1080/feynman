@@ -48,8 +48,9 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const theme = useMemo(() => resolveTheme(), []);
   /** Rows reserved for header / status bar / prompt editor (+ safety margin). */
   const transcriptColumns = stdout.columns;
+  // header (3) + prompt editor (4) + status bar (3) = 10 rows reserved
   const transcriptRows =
-    stdout.rows === undefined ? undefined : Math.max(4, stdout.rows - 10);
+    stdout.rows === undefined ? undefined : Math.max(1, stdout.rows - 10);
   const [items, dispatch] = useReducer(transcriptReducer, undefined, createTranscript);
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'error'>('connecting');
@@ -69,6 +70,9 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const [turnMaxSteps, setTurnMaxSteps] = useState(0);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  const sessionStartedAtRef = useRef<number>(Date.now());
+  /** How many items from the bottom are hidden (user scrolled up into history). */
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +85,22 @@ export function App({ api, serverManager, cwd }: AppProps) {
         sessionIdRef.current = created.sessionId;
         setSession(created.session);
         setStatus('ready');
+        dispatch({
+          type: 'system',
+          banner: true,
+          text: [
+            '',
+            '  ███████╗███████╗██╗   ██╗███╗   ██╗███╗   ███╗ █████╗ ███╗   ██╗',
+            '  ██╔════╝██╔════╝╚██╗ ██╔╝████╗  ██║████╗ ████║██╔══██╗████╗  ██║',
+            '  █████╗  █████╗   ╚████╔╝ ██╔██╗ ██║██╔████╔██║███████║██╔██╗ ██║',
+            '  ██╔══╝  ██╔══╝    ╚██╔╝  ██║╚██╗██║██║╚██╔╝██║██╔══██║██║╚██╗██║',
+            '  ██║     ███████╗   ██║   ██║ ╚████║██║ ╚═╝ ██║██║  ██║██║ ╚████║',
+            '  ╚═╝     ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝',
+            '',
+            '  Your terminal coding agent is ready. Type /help to get started.',
+            '',
+          ].join('\n'),
+        });
       } catch (err) {
         if (cancelled) return;
         setStatus('error');
@@ -344,6 +364,8 @@ export function App({ api, serverManager, cwd }: AppProps) {
 
   const submit = useCallback(
     async (text: string) => {
+      // Snap to bottom whenever the user sends a message.
+      setScrollOffset(0);
       const parsed = parseCommand(text);
       if (parsed) {
         await runCommand(parsed.name, parsed.arg);
@@ -361,6 +383,23 @@ export function App({ api, serverManager, cwd }: AppProps) {
       dispatch({ type: 'error', text: `Failed to cancel turn: ${(err as Error).message}` });
     });
   }, [api]);
+
+  // PageUp / PageDown scroll the transcript. Active whenever the prompt is
+  // accepting input (not in nav mode, picker or permission overlay).
+  const scrollStep = Math.max(3, Math.floor((transcriptRows ?? 10) / 2));
+  useInput(
+    (_input, key) => {
+      if (key.pageUp) {
+        setScrollOffset((prev) => Math.min(prev + scrollStep, Math.max(0, items.length - 1)));
+        return;
+      }
+      if (key.pageDown) {
+        setScrollOffset((prev) => Math.max(0, prev - scrollStep));
+        return;
+      }
+    },
+    { isActive: !navActive && pickerSessions === null && pendingPermissions.length === 0 },
+  );
 
   // Global Ctrl+C handling — first press cancels an in-flight turn, second
   // press exits; with no turn in flight a single press exits. Deactivated while
@@ -400,16 +439,30 @@ export function App({ api, serverManager, cwd }: AppProps) {
   }
 
   return (
-    <Box flexDirection="column" height="100%">
-      {session && <Header cwd={cwd} session={session} theme={theme} />}
-      <Transcript
-        items={items}
-        theme={theme}
-        navActive={navActive}
-        selectedToolCallId={selectedTool}
-        columns={transcriptColumns}
-        availableRows={transcriptRows}
-      />
+    <Box flexDirection="column" height={stdout.rows ?? 24}>
+      {session && (
+        <Header
+          cwd={cwd}
+          session={session}
+          theme={theme}
+          busy={busy}
+          usage={usage}
+          startedAt={turnStartedAt}
+          sessionStartedAt={sessionStartedAtRef.current}
+        />
+      )}
+      {/* Transcript grows to fill all space between header and prompt */}
+      <Box flexGrow={1} flexDirection="column" justifyContent="flex-end">
+        <Transcript
+          items={items}
+          theme={theme}
+          navActive={navActive}
+          selectedToolCallId={selectedTool}
+          columns={transcriptColumns}
+          availableRows={transcriptRows}
+          scrollOffset={scrollOffset}
+        />
+      </Box>
       <PromptEditor
         busy={busy}
         theme={theme}
@@ -437,16 +490,7 @@ export function App({ api, serverManager, cwd }: AppProps) {
           onCancel={cancelTurn}
         />
       )}
-      <StatusBar
-        session={session}
-        busy={busy}
-        navActive={navActive}
-        step={turnStep}
-        maxSteps={turnMaxSteps}
-        usage={usage}
-        startedAt={turnStartedAt}
-        theme={theme}
-      />
+      <StatusBar theme={theme} />
     </Box>
   );
 }

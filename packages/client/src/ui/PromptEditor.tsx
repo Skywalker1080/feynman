@@ -231,7 +231,7 @@ export function PromptEditor({
   const caret = `${editor.value.slice(0, editor.cursor)}█${editor.value.slice(editor.cursor)}`;
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={theme.accent} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={theme.border} paddingX={1}>
       <Box>
         <Text color={theme.accent}>{busy ? '…' : '❯'} </Text>
         <Text wrap="wrap" color={editor.value === '' ? theme.muted : theme.assistant}>

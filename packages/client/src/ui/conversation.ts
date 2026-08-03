@@ -1,8 +1,8 @@
 export type ToolStatus = 'running' | 'done' | 'error' | 'cancelled';
 
 export type TranscriptItem =
-  | { kind: 'user'; id: number; text: string }
-  | { kind: 'assistant'; id: number; text: string; streaming: boolean }
+  | { kind: 'user'; id: number; text: string; createdAt: number }
+  | { kind: 'assistant'; id: number; text: string; streaming: boolean; createdAt: number }
   | {
       kind: 'tool';
       id: number;
@@ -26,8 +26,8 @@ export type TranscriptItem =
       error?: string;
       expanded: boolean;
     }
-  | { kind: 'system'; id: number; text: string }
-  | { kind: 'error'; id: number; text: string };
+  | { kind: 'system'; id: number; text: string; createdAt: number; banner?: boolean }
+  | { kind: 'error'; id: number; text: string; createdAt: number };
 
 export type TranscriptAction =
   | { type: 'user'; text: string }
@@ -46,7 +46,7 @@ export type TranscriptAction =
   | { type: 'toggle-tool'; toolCallId: string }
   | { type: 'fail-running-tools'; message: string }
   | { type: 'cancel-running-tools' }
-  | { type: 'system'; text: string }
+  | { type: 'system'; text: string; banner?: boolean }
   | { type: 'error'; text: string }
   | { type: 'reset' };
 
@@ -85,10 +85,10 @@ export function transcriptReducer(
 ): TranscriptItem[] {
   switch (action.type) {
     case 'user':
-      return [...items, { kind: 'user', id: nextId(items), text: action.text }];
+      return [...items, { kind: 'user', id: nextId(items), text: action.text, createdAt: Date.now() }];
 
     case 'assistant-start':
-      return [...items, { kind: 'assistant', id: nextId(items), text: '', streaming: true }];
+      return [...items, { kind: 'assistant', id: nextId(items), text: '', streaming: true, createdAt: Date.now() }];
 
     case 'assistant-delta': {
       const idx = lastAssistantIndex(items);
@@ -175,10 +175,10 @@ export function transcriptReducer(
     }
 
     case 'system':
-      return [...items, { kind: 'system', id: nextId(items), text: action.text }];
+      return [...items, { kind: 'system', id: nextId(items), text: action.text, createdAt: Date.now(), banner: action.banner }];
 
     case 'error':
-      return [...items, { kind: 'error', id: nextId(items), text: action.text }];
+      return [...items, { kind: 'error', id: nextId(items), text: action.text, createdAt: Date.now() }];
 
     case 'reset':
       return [];

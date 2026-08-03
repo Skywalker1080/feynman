@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #9 TUI polish — done + committed)
+**Last updated:** 2026-08-03 (CLI TUI rebuild — fixed top/bottom layout, dark grey borders, PageUp/PageDown scrolling, ASCII welcome banner — done + committed)
 
 ---
 
@@ -59,6 +59,7 @@ Vercel AI SDK.
 | **Optional permission gate (ticket #7, M3)** | ✅ **DONE** — tests green, live HTTP smoke verified, committed 2026-08-03. See §3e |
 | **Plain mode / non-TTY fallback (ticket #8, M3)** | ✅ **DONE** — tests green, piped non-TTY multi-tool turn verified live, committed 2026-08-03. See §3f |
 | **TUI polish (ticket #9, M4)** | ✅ **DONE** — syntax highlighting + virtualized transcript + parallel-render cleanup; tests green, committed 2026-08-03. See §3g |
+| **CLI TUI UI rebuild** | ✅ **DONE** — fixed top stats bar (no duration), middle scrollable chat thread (PageUp/PageDown, oldest at top), fixed bottom shortcuts bar, dark grey borders (`#444444`), blue ASCII welcome banner. See §3h |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
