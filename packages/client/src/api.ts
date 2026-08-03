@@ -1,5 +1,6 @@
 import { createParser } from 'eventsource-parser';
 import type {
+  CancelTurnResponse,
   CreateSessionResponse,
   GetSessionResponse,
   GetSkillResponse,
@@ -63,7 +64,6 @@ export class ApiClient {
     if (!res.ok || !res.body) {
       throw new Error(`Failed to send message: ${res.statusText}`);
     }
-
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
 
@@ -83,5 +83,18 @@ export class ApiClient {
       if (done) break;
       parser.feed(decoder.decode(value, { stream: true }));
     }
+  }
+
+  async cancelTurn(sessionId: string): Promise<CancelTurnResponse> {
+    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to cancel turn: ${res.statusText}`);
+    }
+
+    return (await res.json()) as CancelTurnResponse;
   }
 }

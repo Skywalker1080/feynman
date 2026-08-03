@@ -107,18 +107,13 @@ export interface TurnUsage {
 }
 
 /** Coarse lifecycle state of a turn, for StatusBar-style UIs */
-export type AgentStatus =
-  | 'connecting'
-  | 'streaming'
-  | 'tool-running'
-  | 'done'
-  | 'cancelled';
+export type AgentStatus = 'connecting' | 'streaming' | 'tool-running' | 'done' | 'cancelled';
 
 export type SSEEvent =
   | { type: 'text-delta'; delta: string }
   | { type: 'tool-call'; id: string; toolName: string; args: unknown }
   | { type: 'tool-result'; id: string; toolName: string; result: string }
-  | { type: 'step-start'; step: number }
+  | { type: 'step-start'; step: number; maxSteps: number }
   | { type: 'status'; status: AgentStatus }
   | { type: 'usage'; usage: TurnUsage }
   | { type: 'cancelled'; reason?: string }

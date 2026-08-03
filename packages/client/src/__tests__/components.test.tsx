@@ -46,6 +46,44 @@ describe('presentational components render', () => {
     expect(out).toContain('tool cards');
   });
 
+  it('StatusBar shows live step and cancel hint while busy', () => {
+    const out = renderToString(
+      <StatusBar
+        session={session}
+        busy
+        step={3}
+        maxSteps={25}
+        startedAt={Date.now()}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('step 3/25');
+    expect(out).toContain('Esc cancel');
+    expect(out).not.toContain('ready');
+  });
+
+  it('StatusBar shows settled usage after a turn', () => {
+    const out = renderToString(
+      <StatusBar
+        session={session}
+        busy={false}
+        usage={{
+          promptTokens: 100,
+          completionTokens: 50,
+          totalTokens: 150,
+          cost: 0.0042,
+          model: 'x/y',
+          elapsedMs: 3200,
+        }}
+        theme={theme}
+      />,
+    );
+    expect(out).toContain('150 tok');
+    expect(out).toContain('$0.0042');
+    expect(out).toContain('3.2s');
+    expect(out).toContain('ready');
+  });
+
   it('Transcript renders user, assistant, tool and system rows', () => {
     const items: TranscriptItem[] = [
       { kind: 'user', id: 1, text: 'hello' },

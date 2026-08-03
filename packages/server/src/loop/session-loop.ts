@@ -166,7 +166,11 @@ export class SessionLoop {
         switch (chunk.type) {
           case 'step-start':
             step += 1;
-            onEvent({ type: 'step-start', step });
+            onEvent({
+              type: 'step-start',
+              step,
+              maxSteps: this.config.agent.maxIterations,
+            });
             onEvent({ type: 'status', status: 'streaming' });
             break;
 
@@ -204,9 +208,7 @@ export class SessionLoop {
             break;
 
           case 'error':
-            throw chunk.error instanceof Error
-              ? chunk.error
-              : new Error(String(chunk.error));
+            throw chunk.error instanceof Error ? chunk.error : new Error(String(chunk.error));
         }
       }
 

@@ -32,6 +32,8 @@ export interface PromptEditorProps {
   active?: boolean;
   /** Called when Tab is pressed with no slash-command token (switch to transcript nav). */
   onRequestNav?: () => void;
+  /** Called when Esc is pressed while a turn is in flight. */
+  onCancel?: () => void;
 }
 
 export function PromptEditor({
@@ -40,6 +42,7 @@ export function PromptEditor({
   onSubmit,
   active = true,
   onRequestNav,
+  onCancel,
 }: PromptEditorProps) {
   const [editor, setEditor] = useState<EditorState>(() => createEditor());
   const [history, setHistory] = useState<History>(() => createHistory());
@@ -139,6 +142,7 @@ export function PromptEditor({
 
       if (key.escape) {
         if (menuOpen) setMenuDismissed(true);
+        else if (busy && onCancel) onCancel();
         return;
       }
 

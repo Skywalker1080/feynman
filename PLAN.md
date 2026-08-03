@@ -62,8 +62,10 @@ issues #1–#9, all labelled `ready-for-agent`):
 - [x] **#2 Server event-contract upgrade** — correlation ids, `step-start`/`status`/`usage`/`cancelled`
       events, cancel endpoint, kill for `run_terminal`. Backwards compatible.
       *(done + verified 2026-08-03 — 67 tests green incl. run_terminal abort; committed; see STATE.md §3a)*.
-- [ ] **#3 ToolCards (M2)** — collapsible tool cards w/ spinner/expand/diff; parallel-call correlation.
-- [ ] **#4 StatusBar live usage (M2)** — live tokens/cost, step N/max, elapsed, provider/model.
+- [x] **#3 ToolCards (M2)** — collapsible tool cards w/ spinner/expand/diff; parallel-call correlation.
+      *(done 2026-08-03 — committed b933ffc, closed; 67 client tests green)*.
+- [x] **#4 StatusBar live usage (M2)** — live tokens/cost, step N/max, elapsed, provider/model.
+      *(done 2026-08-03 — committed, closed; busy → step N/max · live elapsed · Esc cancel; idle → tok · $cost · elapsed)*.
 - [ ] **#5 Cancel (M2)** — Ctrl+C aborts generation; second Ctrl+C exits; kill hung tool runs.
 - [ ] **#6 SessionPicker (M3)** — interactive fuzzy `/resume` list from SQLite.
 - [ ] **#7 Optional permission gate (M3)** — y/n/always before destructive tools, default off.

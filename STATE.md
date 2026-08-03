@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #2 server event-contract upgrade — verified: all tests green, committed)
+**Last updated:** 2026-08-03 (ticket #4 StatusBar live usage — done + verified: all tests green, committed, closed)
 
 ---
 
@@ -52,6 +52,8 @@ Vercel AI SDK.
 | **TUI shell (M1, ticket #1)** | ✅ **Built** — Ink 7 + React 19 full-screen TUI (header/transcript/editor/statusbar), multi-line prompt editor (Enter submit, Shift+Enter newline, ↑/↓ history, Ctrl+R search), slash autocomplete, theme tokens w/ `NO_COLOR`, non-TTY/`--plain` fallback. **Interactive TTY run pending owner verification** |
 | Client package | ⚠️ Rebuilt as **ESM** (`"type": "module"`) — Ink 7 is ESM-only; CJS bundling impossible (top-level await). `eventsource-parser`/Ink/React resolve from `node_modules` at runtime |
 | **Server event-contract upgrade (ticket #2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03. See §3a |
+| **ToolCards (ticket #3, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
+| **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -105,6 +107,44 @@ Also: **do not trust scratch-probe tsconfigs** in temp dirs — a `paths`-mapped
 while the real project failed; root cause only reproduces under real module resolution (the earlier
 sandbox result was a false positive caused by bypassing transitive `@ai-sdk/*` type deps).
 
+### 3b. Tickets #3–#4 — ToolCards + StatusBar live usage (done, 2026-08-03)
+
+**Goal (M2):** turn the flat text transcript into rich tool cards and a live status bar driven by
+the ticket #2 SSE event contract.
+
+**Implemented (committed, tickets closed):**
+- `packages/client/src/ui/ToolCard.tsx` — per-tool card: spinner while running, ✓/✗ + elapsed when
+  done/failed, one-line collapsed args summary, expand/collapse (focused card shows ▲/▼ hint).
+  `edit`/`write_file` cards render a green/red line diff from their args.
+- `packages/client/src/ui/diff.ts` — LCS line diff for the card previews (unit-tested).
+- `packages/client/src/ui/conversation.ts` — tool items carry `toolCallId`, `status`
+  (running/done/error), `startedAt`, `elapsedMs`, `args`, `argsSummary`, `expanded`; reducer
+  correlates parallel tool results by `toolCallId`; new actions `tool-call`/`tool-result`/
+  `toggle-tool`/`fail-running-tools`.
+- `packages/client/src/ui/App.tsx` — Tab (no slash token) enters tool-card nav; ↑/↓ select,
+  Enter expand/collapse, Esc/Tab back. For #4: tracks `step-start`/`usage` events, resets at
+  turn start, clears `startedAt` on `done`, adds `cancelTurn()`.
+- `packages/client/src/ui/StatusBar.tsx` — busy → `step N/max · <live elapsed> · working… · Esc
+  cancel`; idle with usage → `<total> tok · $<cost> · <elapsed> · ready`; live elapsed ticks via
+  `useAnimation`. Provider/model + session id stay on the left.
+- `packages/client/src/ui/PromptEditor.tsx` — Esc cancels an in-flight turn (via new `onCancel`
+  prop) when no slash menu is open; input gated by `active` prop.
+- `packages/client/src/api.ts` — `cancelTurn(sessionId)` → `POST /sessions/:id/cancel`.
+- `packages/types/src/index.ts` — `step-start` now carries `maxSteps` (from server config
+  `agent.maxIterations`, default 25) so the bar can show N/max.
+- `packages/server/src/loop/session-loop.ts` — emits `maxSteps` on `step-start`.
+
+**Verification state (2026-08-03):** ✅ DONE.
+- `npm run build` passes (3 tasks); `npm test` → **91 tests green** (server: 22 — allowlist 4,
+  tools 8, db 5, session-loop 5; client: 69). Client typecheck + lint clean; server typecheck
+  clean **except the 2 pre-existing `search.ts` TS2367 errors** (deferred to a separate ticket).
+- Client tests added: StatusBar busy step/cancel-hint render, settled usage render (tok/$/elapsed).
+- Server test: `step-start` asserts `step` + `maxSteps`.
+
+**Gotcha (ticket #4):** same as #2 — `@feynman/types` is consumed from its built `dist/`; after
+editing `packages/types/src/index.ts` you must rebuild it (`npx tsup` in `packages/types`) or the
+client/server typecheck fails against stale types.
+
 ### Verified end-to-end (2026-08-02)
 
 - **Both provider paths confirmed working** by the owner (LM Studio local + OpenRouter cloud).
@@ -144,8 +184,8 @@ sandbox result was a false positive caused by bypassing transitive `@ai-sdk/*` t
 
 - `~/.feynman/config.json` now carries the OpenRouter key so the CLI works from **any** cwd (the repo
   `.env` alone only worked when launched from `C:\Projects\feynman`).
-- The repo **is** a local git repo (initialized 2026-08-02, no remote) — `git log` is the project's
-  decision logbook per the AGENT.md hard rule.
+- The repo **is** a git repo with a GitHub remote (`Skywalker1080/feynman`, branch `master`) — `git
+  log` is the project's decision logbook per the AGENT.md hard rule; tickets #1–#4 closed on GitHub.
 - LM Studio API port was observed as `41343`, while the default config points at `1234` — confirm the
   correct port when LM Studio is running and update `~/.feynman/config.json` if needed. LM Studio
   provider path confirmed working by owner.

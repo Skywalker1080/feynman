@@ -69,9 +69,7 @@ function makeFakeModel(programs: LanguageModelV1StreamPart[][]): LanguageModelV1
  * fires (rejecting with AbortError) — simulates a real provider mid-stream.
  * `simulateReadableStream` can't do this (its delay is not abort-aware).
  */
-function makeHangingModel(
-  parts: LanguageModelV1StreamPart[],
-): LanguageModelV1 {
+function makeHangingModel(parts: LanguageModelV1StreamPart[]): LanguageModelV1 {
   return {
     specificationVersion: 'v1',
     provider: 'fake',
@@ -141,7 +139,12 @@ describe('SessionLoop', () => {
 
   it('emits status/usage/done events for a plain text turn', async () => {
     const sessionId = 'sess-1';
-    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
 
     const model = makeFakeModel([
       toStreamParts([
@@ -160,10 +163,15 @@ describe('SessionLoop', () => {
     expect(types).toContain('usage');
     expect(types).toContain('done');
 
-    const statuses = events.filter((e) => e.type === 'status').map((e) => (e as { status: string }).status);
+    const statuses = events
+      .filter((e) => e.type === 'status')
+      .map((e) => (e as { status: string }).status);
     expect(statuses).toEqual(['connecting', 'streaming', 'done']);
 
-    const text = events.filter((e) => e.type === 'text-delta').map((e) => (e as { delta: string }).delta).join('');
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => (e as { delta: string }).delta)
+      .join('');
     expect(text).toBe('Hello world');
 
     const usage = events.find((e) => e.type === 'usage');
@@ -182,7 +190,12 @@ describe('SessionLoop', () => {
 
   it('correlates tool-call and tool-result ids and emits step-start', async () => {
     const sessionId = 'sess-2';
-    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
 
     registry.register({
       name: 'echo',
@@ -201,7 +214,11 @@ describe('SessionLoop', () => {
           toolName: 'echo',
           args: JSON.stringify({ text: 'ping' }),
         },
-        { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 20, completionTokens: 10 } },
+        {
+          type: 'finish',
+          finishReason: 'tool-calls',
+          usage: { promptTokens: 20, completionTokens: 10 },
+        },
       ]),
       // Step 2: model answers after the tool ran
       toStreamParts([
@@ -215,11 +232,9 @@ describe('SessionLoop', () => {
     await loop.runTurn(sessionId, 'Use echo', (e) => events.push(e));
 
     const toolCall = events.find((e) => e.type === 'tool-call') as
-      | { type: 'tool-call'; id: string; toolName: string }
-      | undefined;
+      { type: 'tool-call'; id: string; toolName: string } | undefined;
     const toolResult = events.find((e) => e.type === 'tool-result') as
-      | { type: 'tool-result'; id: string }
-      | undefined;
+      { type: 'tool-result'; id: string } | undefined;
 
     expect(toolCall).toBeDefined();
     expect(toolResult).toBeDefined();
@@ -228,6 +243,10 @@ describe('SessionLoop', () => {
     expect(toolResult!.id).toBe('call-1');
 
     expect(events.some((e) => e.type === 'step-start')).toBe(true);
+    const stepStart = events.find((e) => e.type === 'step-start') as
+      { type: 'step-start'; step: number; maxSteps: number } | undefined;
+    expect(stepStart?.step).toBe(1);
+    expect(stepStart?.maxSteps).toBe(5);
     expect(events.filter((e) => e.type === 'status')).toContainEqual({
       type: 'status',
       status: 'tool-running',
@@ -240,7 +259,12 @@ describe('SessionLoop', () => {
 
   it('cancelTurn aborts an in-flight turn and emits cancelled', async () => {
     const sessionId = 'sess-3';
-    store.createSession({ id: sessionId, cwd: tmpDir, provider: 'lmstudio', model: 'qwen3-30b-a3b' });
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
 
     const model = makeHangingModel([{ type: 'text-delta', textDelta: 'started' }]);
 
@@ -258,14 +282,16 @@ describe('SessionLoop', () => {
     const types = events.map((e) => e.type);
     expect(types).toContain('cancelled');
     expect(types).toContain('done');
-    const statuses = events.filter((e) => e.type === 'status').map((e) => (e as { status: string }).status);
+    const statuses = events
+      .filter((e) => e.type === 'status')
+      .map((e) => (e as { status: string }).status);
     expect(statuses).toContain('cancelled');
     // No error should be emitted for a clean cancel
     expect(types).not.toContain('error');
   });
 
   it('cancelTurn returns false when no turn is running', async () => {
-    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => ({} as never));
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => ({}) as never);
     expect(loop.cancelTurn('no-session')).toBe(false);
   });
 });

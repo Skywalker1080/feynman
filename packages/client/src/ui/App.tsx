@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import type { SSEEvent, Session } from '@feynman/types';
+import type { SSEEvent, Session, TurnUsage } from '@feynman/types';
 import type { ApiClient } from '../api';
 import type { ServerManager } from '../server-manager';
 import { parseCommand } from './commands';
@@ -31,6 +31,7 @@ const HELP_TEXT = [
   '  Shift+Enter     New line',
   '  Up / Down       Walk command history',
   '  Ctrl+R          Reverse-search history',
+  '  Esc             Cancel an in-flight turn',
   '  Tab             Accept a slash-command completion',
   '  Tab             (no slash token) inspect tool cards',
   '  In card view:   Up/Down select, Enter expand/collapse, Tab back',
@@ -49,6 +50,10 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const busyRef = useRef(false);
   const [navActive, setNavActive] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [turnStep, setTurnStep] = useState(0);
+  const [turnMaxSteps, setTurnMaxSteps] = useState(0);
+  const [usage, setUsage] = useState<TurnUsage | null>(null);
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,12 +106,20 @@ export function App({ api, serverManager, cwd }: AppProps) {
       case 'session-start-disclaimer':
         dispatch({ type: 'system', text: ev.message });
         break;
+      case 'step-start':
+        setTurnStep(ev.step);
+        setTurnMaxSteps(ev.maxSteps);
+        break;
+      case 'usage':
+        setUsage(ev.usage);
+        break;
       case 'error':
         dispatch({ type: 'error', text: ev.message });
         dispatch({ type: 'fail-running-tools', message: ev.message });
         break;
       case 'done':
         dispatch({ type: 'assistant-end' });
+        setTurnStartedAt(null);
         break;
     }
   }, []);
@@ -119,6 +132,10 @@ export function App({ api, serverManager, cwd }: AppProps) {
       setBusy(true);
       setNavActive(false);
       setSelectedTool(null);
+      setTurnStep(0);
+      setTurnMaxSteps(0);
+      setUsage(null);
+      setTurnStartedAt(Date.now());
       if (showUser) dispatch({ type: 'user', text: prompt });
       dispatch({ type: 'assistant-start' });
       try {
@@ -275,6 +292,14 @@ export function App({ api, serverManager, cwd }: AppProps) {
     [runCommand, startTurn],
   );
 
+  const cancelTurn = useCallback(() => {
+    const id = sessionIdRef.current;
+    if (!id || !busyRef.current) return;
+    void api.cancelTurn(id).catch((err) => {
+      dispatch({ type: 'error', text: `Failed to cancel turn: ${(err as Error).message}` });
+    });
+  }, [api]);
+
   if (status === 'connecting') {
     return (
       <Box>
@@ -306,8 +331,18 @@ export function App({ api, serverManager, cwd }: AppProps) {
         active={!navActive}
         onRequestNav={enterNav}
         onSubmit={(text) => void submit(text)}
+        onCancel={cancelTurn}
       />
-      <StatusBar session={session} busy={busy} navActive={navActive} theme={theme} />
+      <StatusBar
+        session={session}
+        busy={busy}
+        navActive={navActive}
+        step={turnStep}
+        maxSteps={turnMaxSteps}
+        usage={usage}
+        startedAt={turnStartedAt}
+        theme={theme}
+      />
     </Box>
   );
 }
