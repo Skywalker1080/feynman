@@ -3,7 +3,7 @@
 > Status snapshot of the Feynman coding agent project. Updated at the start of each session.
 > Companion file: `PLAN.md` (plan + success criteria). See `AGENT.md` for the workflow rules.
 
-**Last updated:** 2026-08-03 (ticket #5 Ctrl+C cancel — implemented + tests green, committed)
+**Last updated:** 2026-08-03 (ticket #5 Ctrl+C cancel — done + owner-verified + closed)
 
 ---
 
@@ -54,7 +54,7 @@ Vercel AI SDK.
 | **Server event-contract upgrade (ticket #2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03. See §3a |
 | **ToolCards (ticket #3, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
 | **StatusBar live usage (ticket #4, M2)** | ✅ **DONE + VERIFIED** — tests green, committed 2026-08-03, closed. See §3b |
-| **Cancel in-flight turns (ticket #5, M2)** | ✅ **IMPLEMENTED + TESTS GREEN** — committed 2026-08-03; interactive TTY run pending owner. See §3c |
+| **Cancel in-flight turns (ticket #5, M2)** | ✅ **DONE + VERIFIED** — tests green, owner verified interactive TTY run, committed 2026-08-03, closed. See §3c |
 
 ### 3a. Ticket #2 — server event-contract upgrade (WIP, 2026-08-02)
 
@@ -170,17 +170,16 @@ endpoint) and the transcript shows a cancelled state; a second Ctrl+C exits the 
   "Ctrl+C exit".
 - Help text (`/help`) documents the new Ctrl+C behavior.
 
-**Verification state (2026-08-03):** ✅ TESTS GREEN, interactive TTY run pending.
+**Verification state (2026-08-03):** ✅ DONE + VERIFIED (owner interactive TTY run).
 - `npm run build` passes (3 tasks); `npm test` → **93 tests green** (server: 22, client: 71 — +2:
   `cancel-running-tools` reducer test, cancelled ToolCard render test; StatusBar hints asserted).
 - Client typecheck + lint clean; server typecheck/lint failures remain the **pre-existing** `search.ts`
   TS2367 ×2 + `sessions.ts` unused `randomUUID`/`any` ×2 (deferred tickets).
 - Server-side cancel already proven by ticket #2's `session-loop.test.ts` (cancel → cancelled event;
   `run_terminal` abort kills the process tree).
-
-**Pending:** owner interactive TTY verification — Ctrl+C during a normal turn shows "Turn cancelled."
-+ ◼ cards, second Ctrl+C exits; Ctrl+C during a deliberately long `run_terminal` (e.g. `sleep 300`)
-  kills it; send a new message after a cancel to confirm a clean fresh turn.
+- **Owner interactive TTY verification (2026-08-03):** ✅ confirmed — Ctrl+C during a normal turn
+  aborts and shows the cancelled state; second Ctrl+C exits; a long `run_terminal` is killed via the
+  cancel path; a new message after a cancel starts a fresh turn cleanly. Ticket closed.
 
 ### Verified end-to-end (2026-08-02)
 
