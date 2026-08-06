@@ -15,7 +15,7 @@ describe('transcriptReducer', () => {
     expect(items[1]).toMatchObject({ kind: 'assistant', text: 'Hi there', streaming: false });
   });
 
-  it('interleaves tool calls into the assistant turn', () => {
+  it('places the assistant reply AFTER tool cards so it stays above the input', () => {
     let items = createTranscript();
     items = transcriptReducer(items, { type: 'user', text: 'go' });
     items = transcriptReducer(items, { type: 'assistant-start' });
@@ -31,15 +31,34 @@ describe('transcriptReducer', () => {
     items = transcriptReducer(items, { type: 'assistant-delta', delta: 'done' });
     items = transcriptReducer(items, { type: 'assistant-end' });
 
-    expect(items.map((i) => i.kind)).toEqual(['user', 'assistant', 'tool']);
-    const tool = items[2] as Extract<(typeof items)[number], { kind: 'tool' }>;
+    // Newest item is the reply, below the tools — not accumulated above them.
+    expect(items.map((i) => i.kind)).toEqual(['user', 'tool', 'assistant']);
+    const tool = items[1] as Extract<(typeof items)[number], { kind: 'tool' }>;
     expect(tool.toolName).toBe('read_file');
     expect(tool.status).toBe('done');
     expect(tool.result).toBe('line 1');
-    expect(tool.resultPreview).toBe('line 1');
-    // the single assistant item accumulates text across tool boundaries
-    const assistant = items[1] as Extract<(typeof items)[number], { kind: 'assistant' }>;
+    const assistant = items[2] as Extract<(typeof items)[number], { kind: 'assistant' }>;
     expect(assistant.text).toBe('done');
+    expect(assistant.streaming).toBe(false);
+  });
+
+  it('opens a fresh assistant bubble when the model talks again after more tools', () => {
+    let items = createTranscript();
+    items = transcriptReducer(items, { type: 'assistant-delta', delta: 'Exploring…' });
+    items = transcriptReducer(items, {
+      type: 'tool-call',
+      toolCallId: 'tc-1',
+      toolName: 'read_file',
+      args: { path: 'a.ts' },
+      argsSummary: 'a.ts',
+      startedAt: 1000,
+    });
+    items = transcriptReducer(items, { type: 'tool-result', toolCallId: 'tc-1', result: 'line 1' });
+    items = transcriptReducer(items, { type: 'assistant-delta', delta: 'Found it.' });
+
+    expect(items.map((i) => i.kind)).toEqual(['assistant', 'tool', 'assistant']);
+    const second = items[2] as Extract<(typeof items)[number], { kind: 'assistant' }>;
+    expect(second.text).toBe('Found it.');
   });
 
   it('correlates parallel tool calls by their own ids', () => {

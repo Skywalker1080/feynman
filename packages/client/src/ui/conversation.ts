@@ -54,13 +54,6 @@ export function createTranscript(): TranscriptItem[] {
   return [];
 }
 
-function lastAssistantIndex(items: TranscriptItem[]): number {
-  for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i]?.kind === 'assistant') return i;
-  }
-  return -1;
-}
-
 /** Index of the most recent tool item matching `toolCallId` (or the last tool overall). */
 function findToolIndex(items: TranscriptItem[], toolCallId: string): number {
   for (let i = items.length - 1; i >= 0; i--) {
@@ -88,29 +81,39 @@ export function transcriptReducer(
       return [...items, { kind: 'user', id: nextId(items), text: action.text, createdAt: Date.now() }];
 
     case 'assistant-start':
-      return [...items, { kind: 'assistant', id: nextId(items), text: '', streaming: true, createdAt: Date.now() }];
+      // The assistant bubble is created lazily on the first text-delta so it
+      // lands AFTER any tool cards already in the transcript. Otherwise the
+      // reply would render above the tools and the tool cards would sit pinned
+      // above the input, starving the model's message of space.
+      return items;
 
     case 'assistant-delta': {
-      const idx = lastAssistantIndex(items);
-      if (idx === -1) {
-        return [
-          ...items,
-          { kind: 'assistant', id: nextId(items), text: action.delta, streaming: true },
-        ];
+      const last = items[items.length - 1];
+      // Append to the current bubble only when it is the newest item. If the
+      // model ran tools in between, start a fresh bubble below the tools so the
+      // reply scrolls up like a normal text message.
+      if (last && last.kind === 'assistant' && last.streaming) {
+        const copy = [...items];
+        const it = copy[copy.length - 1] as Extract<TranscriptItem, { kind: 'assistant' }>;
+        copy[copy.length - 1] = { ...it, text: it.text + action.delta };
+        return copy;
       }
-      const copy = [...items];
-      const it = copy[idx] as Extract<TranscriptItem, { kind: 'assistant' }>;
-      copy[idx] = { ...it, text: it.text + action.delta };
-      return copy;
+      return [
+        ...items,
+        { kind: 'assistant', id: nextId(items), text: action.delta, streaming: true, createdAt: Date.now() },
+      ];
     }
 
     case 'assistant-end': {
-      const idx = lastAssistantIndex(items);
-      if (idx === -1) return items;
-      const copy = [...items];
-      const it = copy[idx] as Extract<TranscriptItem, { kind: 'assistant' }>;
-      copy[idx] = { ...it, streaming: false };
-      return copy;
+      let changed = false;
+      const copy = items.map((item) => {
+        if (item.kind === 'assistant' && item.streaming) {
+          changed = true;
+          return { ...item, streaming: false };
+        }
+        return item;
+      });
+      return changed ? copy : items;
     }
 
     case 'tool-call':

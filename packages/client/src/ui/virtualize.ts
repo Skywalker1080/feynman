@@ -1,4 +1,5 @@
 import type { TranscriptItem } from './conversation';
+import { estimateMarkdownRows } from './markdown-parser';
 
 export interface VirtualizeHints {
   columns: number;
@@ -25,21 +26,22 @@ export function estimateItemHeight(item: TranscriptItem, hints: VirtualizeHints)
     case 'error':
     case 'assistant':
       // +1 for the timestamp+speaker header line rendered above each message
-      return margin + 1 + estimateTextRows(item.text, hints.columns);
+      return margin + 1 + estimateMarkdownRows(item.text, hints.columns);
     case 'system':
       return margin + (item.banner ? 0 : 1) + estimateTextRows(item.text, hints.columns);
     case 'tool': {
       const focused = item.toolCallId === hints.focusedToolCallId;
       const border = focused ? 2 : 0;
-      let body: number;
       if (item.expanded) {
+        let body: number;
         if (item.error) body = estimateTextRows(item.error, hints.columns);
         else if (item.result) body = estimateTextRows(item.result, hints.columns);
         else body = 1;
-      } else {
-        body = 1;
+        // collapsed header line + expanded body + border
+        return margin + border + 1 + body;
       }
-      return margin + border + 1 + body; // +1 header line
+      // collapsed cards are a single line + margin + border
+      return margin + border + 1;
     }
   }
 }

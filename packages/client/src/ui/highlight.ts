@@ -208,8 +208,11 @@ export function tokenizeLines(code: string, language?: string): CodeToken[][] {
   return lines;
 }
 
+/** hljs token roles that map to a scalar theme color (excludes `toolColors`). */
+type ToolRole = Exclude<keyof Theme, 'toolColors'>;
+
 /** Map an hljs class to a theme color role; `undefined` renders plain. */
-const CLASS_TO_ROLE: Record<string, keyof Theme> = {
+const CLASS_TO_ROLE: Record<string, ToolRole> = {
   keyword: 'accent',
   title: 'accent',
   function: 'accent',

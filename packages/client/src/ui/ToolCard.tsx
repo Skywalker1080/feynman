@@ -55,7 +55,6 @@ export function ToolCard(props: ToolCardProps) {
     startedAt,
     elapsedMs,
     result,
-    resultPreview,
     error,
     expanded,
     focused,
@@ -106,7 +105,9 @@ export function ToolCard(props: ToolCardProps) {
             .map((line): DiffLine => ({ type: 'add', text: line }))
         : undefined;
 
-  const toggleHint = focused ? (expanded ? '▲ collapse' : '▼ expand') : '';
+  const toggleHint = focused ? (expanded ? ' ▲ collapse' : ' ▼ expand') : '';
+  const summary = collapsedSummary(status, argsSummary, result, error);
+  const summaryColor = theme.toolColors[toolName] ?? theme.tool;
 
   return (
     <Box
@@ -117,53 +118,54 @@ export function ToolCard(props: ToolCardProps) {
       paddingX={focused ? 1 : 0}
       flexShrink={0}
     >
-      <Box>
-        <Text color={iconColor}>{icon}</Text>
-        <Text color={theme.tool} bold>
-          {' '}
-          {toolName}
-        </Text>
-        {liveElapsed !== undefined ? (
-          <Text color={theme.muted}> {formatElapsed(liveElapsed)}</Text>
-        ) : null}
-        <Text color={focused ? theme.warning : theme.muted}> {toggleHint}</Text>
-      </Box>
-
       {expanded ? (
-        <Box flexDirection="column" marginTop={1}>
-          {diff ? (
-            <DiffView lines={diff} theme={theme} />
-          ) : result ? (
-            <Text wrap="wrap" color={theme.assistant}>
-              {result}
+        <Box flexDirection="column">
+          <Box>
+            <Text color={iconColor}>{icon}</Text>
+            <Text color={summaryColor} bold>
+              {' '}
+              {summary}
             </Text>
-          ) : error ? (
-            <Text wrap="wrap" color={theme.error}>
-              {error}
-            </Text>
-          ) : null}
+            {liveElapsed !== undefined ? (
+              <Text color={theme.muted}> {formatElapsed(liveElapsed)}</Text>
+            ) : null}
+            <Text color={focused ? theme.warning : theme.muted}> {toggleHint}</Text>
+          </Box>
+          <Box flexDirection="column" marginTop={1}>
+            {diff ? (
+              <DiffView lines={diff} theme={theme} />
+            ) : result ? (
+              <Text wrap="wrap" color={theme.assistant}>
+                {result}
+              </Text>
+            ) : error ? (
+              <Text wrap="wrap" color={theme.error}>
+                {error}
+              </Text>
+            ) : null}
+          </Box>
         </Box>
       ) : (
-        <Box marginTop={0}>
-          <Text wrap="wrap" color={theme.muted}>
-            {collapsedBody(status, argsSummary, resultPreview, result, error)}
-          </Text>
+        <Box>
+          <Text color={iconColor}>{icon}</Text>
+          <Text color={summaryColor}> {summary}</Text>
+          {liveElapsed !== undefined ? (
+            <Text color={theme.muted}> {formatElapsed(liveElapsed)}</Text>
+          ) : null}
+          <Text color={focused ? theme.warning : theme.muted}> {toggleHint}</Text>
         </Box>
       )}
     </Box>
   );
 }
 
-function collapsedBody(
+function collapsedSummary(
   status: ToolStatus,
   argsSummary: string,
-  resultPreview: string | undefined,
   result: string | undefined,
   error: string | undefined,
 ): string {
   if (status === 'error') return error ?? 'failed';
   if (status === 'cancelled') return 'cancelled';
-  const preview = resultPreview ?? (result ? result.replace(/\n/g, ' ') : '');
-  const body = argsSummary ? `${argsSummary}${preview ? ` — ${preview}` : ''}` : preview;
-  return body || 'running…';
+  return argsSummary || 'running…';
 }

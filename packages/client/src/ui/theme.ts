@@ -10,6 +10,8 @@ export interface Theme {
   assistant: string | undefined;
   tool: string | undefined;
   system: string | undefined;
+  /** Per-tool color for the one-line tool-call summary. Unknown tools fall back to `tool`. */
+  toolColors: Record<string, string | undefined>;
 }
 
 export interface ThemeOptions {
@@ -34,5 +36,13 @@ export function resolveTheme(opts: ThemeOptions = {}): Theme {
     assistant: c('white'),
     tool: c('cyan'),
     system: c('yellow'),
+    toolColors: {
+      read_file: c('cyan'),
+      list_dir: c('cyan'),
+      search: c('magenta'),
+      edit: c('yellow'),
+      write_file: c('green'),
+      run_terminal: c('magenta'),
+    },
   };
 }

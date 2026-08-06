@@ -27,7 +27,7 @@ describe('estimateItemHeight', () => {
     expect(estimateItemHeight(item({ kind: 'error', id: 1, text: 'hi' }), hints)).toBe(2);
   });
 
-  it('estimates a collapsed tool card', () => {
+  it('estimates a collapsed tool card as a single line', () => {
     expect(
       estimateItemHeight(
         item({
@@ -46,7 +46,7 @@ describe('estimateItemHeight', () => {
         }),
         hints,
       ),
-    ).toBe(3);
+    ).toBe(2);
   });
 
   it('adds the focused border', () => {
@@ -61,7 +61,7 @@ describe('estimateItemHeight', () => {
       startedAt: 0,
       expanded: false,
     }) as TranscriptItem;
-    expect(estimateItemHeight(card, { ...hints, focusedToolCallId: 't1' })).toBe(5);
+    expect(estimateItemHeight(card, { ...hints, focusedToolCallId: 't1' })).toBe(4);
   });
 
   it('estimates an expanded card body from the result', () => {

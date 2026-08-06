@@ -42,19 +42,31 @@ describe('diffLines', () => {
 });
 
 describe('summarizeArgs', () => {
-  it('summarizes edit and write_file by path', () => {
+  it('summarizes edit and write_file with a verb + path', () => {
     expect(summarizeArgs('edit', { path: 'src/a.ts', old_str: 'x', new_str: 'y' })).toBe(
-      'src/a.ts',
+      'Edit src/a.ts',
     );
-    expect(summarizeArgs('write_file', { path: 'README.md', content: 'hi' })).toBe('README.md');
+    expect(summarizeArgs('write_file', { path: 'README.md', content: 'hi' })).toBe(
+      'Write README.md',
+    );
   });
 
-  it('summarizes run_terminal by command', () => {
-    expect(summarizeArgs('run_terminal', { command: 'npm test' })).toBe('npm test');
+  it('summarizes run_terminal as a run line', () => {
+    expect(summarizeArgs('run_terminal', { command: 'npm test' })).toBe('Run: npm test');
   });
 
   it('summarizes search by pattern', () => {
-    expect(summarizeArgs('search', { pattern: 'todo' })).toBe('~ todo');
+    expect(summarizeArgs('search', { pattern: 'todo' })).toBe('Search "todo"');
+    expect(summarizeArgs('search', { pattern: 'todo', path: 'src' })).toBe(
+      'Search "todo" in src',
+    );
+  });
+
+  it('summarizes read_file with a path and optional offsets', () => {
+    expect(summarizeArgs('read_file', { path: 'a.ts' })).toBe('Read a.ts');
+    expect(summarizeArgs('read_file', { path: 'a.ts', offset: 190, limit: 120 })).toBe(
+      'Read a.ts [offset=190, limit=120]',
+    );
   });
 
   it('falls back to JSON for unknown tools', () => {

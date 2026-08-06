@@ -95,8 +95,8 @@ describe('presentational components render', () => {
         id: 3,
         toolCallId: 'tc-1',
         toolName: 'read_file',
-        args: {},
-        argsSummary: 'a.ts',
+        args: { path: 'a.ts' },
+        argsSummary: 'Read a.ts',
         status: 'done',
         startedAt: 1000,
         elapsedMs: 5,
@@ -112,7 +112,7 @@ describe('presentational components render', () => {
     );
     expect(out).toContain('hello');
     expect(out).toContain('hi');
-    expect(out).toContain('read_file');
+    expect(out).toContain('Read a.ts');
     expect(out).toContain('note');
     expect(out).toContain('boom');
   });
@@ -178,7 +178,7 @@ describe('ToolCard', () => {
         theme={theme}
       />,
     );
-    expect(out).toContain('run_terminal');
+    expect(out).toContain('npm test');
   });
 
   it('shows a check when done', () => {

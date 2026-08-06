@@ -3,7 +3,7 @@ import { Box, Text, useAnimation } from 'ink';
 import type { TranscriptItem } from './conversation';
 import type { Theme } from './theme';
 import { ToolCard } from './ToolCard';
-import { HighlightedText } from './HighlightedText';
+import { Markdown } from './Markdown';
 import { computeSlice, estimateItemHeight } from './virtualize';
 
 interface TranscriptProps {
@@ -47,25 +47,16 @@ function TranscriptRow({ item, theme }: { item: TranscriptItem; theme: Theme }) 
         </Box>
       );
 
-    case 'assistant': {
-      const hasCode = item.text.includes('```') || item.text.includes('~~~');
+    case 'assistant':
       return (
         <Box flexDirection="column" marginTop={1}>
           <Box>
             <Text color={theme.muted}>{formatTime(item.createdAt)}  </Text>
             <Text color={theme.accent} bold>feynman</Text>
           </Box>
-          {hasCode ? (
-            <HighlightedText text={item.text} theme={theme} />
-          ) : (
-            <Text color={theme.assistant} wrap="wrap">
-              {item.streaming ? '…' : ''}
-              {item.text}
-            </Text>
-          )}
+          <Markdown text={item.text} theme={theme} streaming={item.streaming} />
         </Box>
       );
-    }
 
     case 'system':
       if (item.banner) {

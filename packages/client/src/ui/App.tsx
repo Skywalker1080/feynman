@@ -66,8 +66,6 @@ export function App({ api, serverManager, cwd }: AppProps) {
   const [pickerSessions, setPickerSessions] = useState<Session[] | null>(null);
   /** Gated tool calls awaiting a y/n/always answer. Show the first; pop on answer. */
   const [pendingPermissions, setPendingPermissions] = useState<PermissionRequest[]>([]);
-  const [turnStep, setTurnStep] = useState(0);
-  const [turnMaxSteps, setTurnMaxSteps] = useState(0);
   const [usage, setUsage] = useState<TurnUsage | null>(null);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const sessionStartedAtRef = useRef<number>(Date.now());
@@ -141,10 +139,6 @@ export function App({ api, serverManager, cwd }: AppProps) {
       case 'session-start-disclaimer':
         dispatch({ type: 'system', text: ev.message });
         break;
-      case 'step-start':
-        setTurnStep(ev.step);
-        setTurnMaxSteps(ev.maxSteps);
-        break;
       case 'usage':
         setUsage(ev.usage);
         break;
@@ -169,6 +163,17 @@ export function App({ api, serverManager, cwd }: AppProps) {
       case 'done':
         dispatch({ type: 'assistant-end' });
         setTurnStartedAt(null);
+        if (ev.finishReason === 'length') {
+          dispatch({
+            type: 'system',
+            text: `Reached max steps (${ev.maxSteps ?? '?'}). The turn stopped early — ask to continue.`,
+          });
+        } else if (ev.emptyAfterTools) {
+          dispatch({
+            type: 'system',
+            text: 'Model finished without a final response after the tool calls. Ask it to continue and summarize.',
+          });
+        }
         break;
     }
   }, []);
@@ -181,8 +186,6 @@ export function App({ api, serverManager, cwd }: AppProps) {
       setBusy(true);
       setNavActive(false);
       setSelectedTool(null);
-      setTurnStep(0);
-      setTurnMaxSteps(0);
       setUsage(null);
       setTurnStartedAt(Date.now());
       if (showUser) dispatch({ type: 'user', text: prompt });
