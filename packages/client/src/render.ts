@@ -35,6 +35,13 @@ export class StreamRenderer {
 
       case 'done':
         process.stdout.write('\n');
+        if (event.finishReason === 'length') {
+          process.stdout.write('\x1b[2m(finished: max steps reached — reply to continue)\x1b[0m\n');
+        } else if (event.emptyAfterTools) {
+          process.stdout.write(
+            '\x1b[2m(model returned no final response — reply to have it summarize)\x1b[0m\n',
+          );
+        }
         break;
     }
   }

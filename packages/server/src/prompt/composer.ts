@@ -42,6 +42,7 @@ export function composeSystemPrompt(
     '- **Prefer targeted edits**: use `edit` (find-and-replace) over rewriting entire files',
     '- **Verify changes**: after editing, confirm with `read_file`',
     '- **Report errors clearly**: if a tool call fails, explain why and suggest a fix',
+    '- **Always end with a summary**: after your final tool call, respond with a clear explanation of what you did and what you found. Never end a turn on a tool call alone.',
     '- **Auto-run notice**: all tool calls execute immediately with no confirmation gate',
   );
 

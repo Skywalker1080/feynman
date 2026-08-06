@@ -262,6 +262,228 @@ describe('SessionLoop', () => {
     expect(usage).toMatchObject({ type: 'usage' });
   });
 
+  it('runs a full exploration chain: tool -> tool -> final summary text', async () => {
+    const sessionId = 'sess-explore';
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
+
+    registry.register({
+      name: 'echo',
+      description: 'Echo input back',
+      schema: z.object({ text: z.string() }),
+      execute: async ({ text }) => text,
+    });
+
+    const model = makeFakeModel([
+      // Step 1: explore — first tool call
+      toStreamParts([
+        {
+          type: 'tool-call',
+          toolCallType: 'function',
+          toolCallId: 'call-1',
+          toolName: 'echo',
+          args: JSON.stringify({ text: 'src' }),
+        },
+        { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } },
+      ]),
+      // Step 2: explore — second tool call
+      toStreamParts([
+        {
+          type: 'tool-call',
+          toolCallType: 'function',
+          toolCallId: 'call-2',
+          toolName: 'echo',
+          args: JSON.stringify({ text: 'README' }),
+        },
+        { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 20, completionTokens: 5 } },
+      ]),
+      // Step 3: model explains what it understood
+      toStreamParts([
+        { type: 'text-delta', textDelta: 'This repo has src and a README.' },
+        { type: 'finish', finishReason: 'stop', usage: { promptTokens: 30, completionTokens: 15 } },
+      ]),
+    ]);
+
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'explore this repo', (e) => events.push(e));
+
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => (e as { delta: string }).delta)
+      .join('');
+    expect(text).toContain('This repo has src');
+    // Three model steps ran: tool, tool, summary
+    expect(events.filter((e) => e.type === 'step-start').length).toBe(3);
+    expect(events.some((e) => e.type === 'error')).toBe(false);
+  });
+
+  it('flags an empty final step after tools as emptyAfterTools', async () => {
+    const sessionId = 'sess-empty-stop';
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
+
+    registry.register({
+      name: 'echo',
+      description: 'Echo input back',
+      schema: z.object({ text: z.string() }),
+      execute: async ({ text }) => text,
+    });
+
+    const model = makeFakeModel([
+      // Step 1: tool call
+      toStreamParts([
+        {
+          type: 'tool-call',
+          toolCallType: 'function',
+          toolCallId: 'call-1',
+          toolName: 'echo',
+          args: JSON.stringify({ text: 'x' }),
+        },
+        { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } },
+      ]),
+      // Step 2: model called again after the tool, but returns NOTHING (empty stop)
+      toStreamParts([
+        { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 5 } },
+      ]),
+    ]);
+
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'explore', (e) => events.push(e));
+
+    const done = events.find((e) => e.type === 'done') as {
+      type: 'done';
+      finishReason?: string;
+      emptyAfterTools?: boolean;
+    } | undefined;
+    expect(done?.finishReason).toBe('stop');
+    expect(done?.emptyAfterTools).toBe(true);
+
+    // No text was emitted for the turn
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => (e as { delta: string }).delta)
+      .join('');
+    expect(text).toBe('');
+  });
+
+  it('does not flag emptyAfterTools when the model summarizes after tools', async () => {
+    const sessionId = 'sess-summary';
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
+
+    registry.register({
+      name: 'echo',
+      description: 'Echo input back',
+      schema: z.object({ text: z.string() }),
+      execute: async ({ text }) => text,
+    });
+
+    const model = makeFakeModel([
+      toStreamParts([
+        {
+          type: 'tool-call',
+          toolCallType: 'function',
+          toolCallId: 'call-1',
+          toolName: 'echo',
+          args: JSON.stringify({ text: 'x' }),
+        },
+        { type: 'finish', finishReason: 'tool-calls', usage: { promptTokens: 10, completionTokens: 5 } },
+      ]),
+      toStreamParts([
+        { type: 'text-delta', textDelta: 'Here is what I found.' },
+        { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } },
+      ]),
+    ]);
+
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'explore', (e) => events.push(e));
+
+    const done = events.find((e) => e.type === 'done') as {
+      type: 'done';
+      emptyAfterTools?: boolean;
+    } | undefined;
+    expect(done?.emptyAfterTools).toBe(false);
+  });
+
+  it('keeps looping when a tool throws — error becomes an observation', async () => {
+    const sessionId = 'sess-tool-error';
+    store.createSession({
+      id: sessionId,
+      cwd: tmpDir,
+      provider: 'lmstudio',
+      model: 'qwen3-30b-a3b',
+    });
+
+    registry.register({
+      name: 'boom',
+      description: 'Always throws',
+      schema: z.object({ text: z.string() }),
+      execute: async () => {
+        throw new Error('old_str not found');
+      },
+    });
+
+    const model = makeFakeModel([
+      // Step 1: model calls the throwing tool
+      toStreamParts([
+        {
+          type: 'tool-call',
+          toolCallType: 'function',
+          toolCallId: 'call-err',
+          toolName: 'boom',
+          args: JSON.stringify({ text: 'x' }),
+        },
+        {
+          type: 'finish',
+          finishReason: 'tool-calls',
+          usage: { promptTokens: 10, completionTokens: 5 },
+        },
+      ]),
+      // Step 2: model recovers after seeing the error observation
+      toStreamParts([
+        { type: 'text-delta', textDelta: 'Fixing that' },
+        { type: 'finish', finishReason: 'stop', usage: { promptTokens: 20, completionTokens: 10 } },
+      ]),
+    ]);
+
+    const loop = new SessionLoop(makeConfig(), registry, store, skills, () => model as never);
+    const events: SSEEvent[] = [];
+    await loop.runTurn(sessionId, 'try it', (e) => events.push(e));
+
+    // No error event — the loop survived the thrown tool
+    expect(events.some((e) => e.type === 'error')).toBe(false);
+
+    // The error came back as a normal tool result, id-correlated to the call
+    const toolResult = events.find((e) => e.type === 'tool-result') as
+      { type: 'tool-result'; id: string; result: string } | undefined;
+    expect(toolResult).toBeDefined();
+    expect(toolResult!.id).toBe('call-err');
+    expect(toolResult!.result).toContain('old_str not found');
+
+    // The model ran again after the error observation
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => (e as { delta: string }).delta)
+      .join('');
+    expect(text).toBe('Fixing that');
+    expect(events.filter((e) => e.type === 'step-start').length).toBe(2);
+  });
+
   it('cancelTurn aborts an in-flight turn and emits cancelled', async () => {
     const sessionId = 'sess-3';
     store.createSession({

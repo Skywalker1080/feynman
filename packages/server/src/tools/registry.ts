@@ -57,7 +57,18 @@ export class ToolRegistry {
       result[name] = tool({
         description: agentTool.description,
         parameters: agentTool.schema,
-        execute: agentTool.execute,
+        execute: async (args, options) => {
+          try {
+            return await agentTool.execute(args, options);
+          } catch (err) {
+            // Tool failures must come back to the model as observations, NOT
+            // kill the agentic loop. The AI SDK treats a thrown tool error as
+            // fatal (finishReason 'error' -> turn ends); returning the error
+            // string as the tool result keeps the model in the loop to recover.
+            const message = err instanceof Error ? err.message : String(err);
+            return `[error: ${message}]`;
+          }
+        },
       });
     }
     return result;

@@ -215,11 +215,15 @@ export class SessionLoop {
       // Stream all events to the caller (SSE / whatever transport)
       let step = 0;
       let usage: LanguageModelUsage | undefined;
+      let finishReason: string | undefined;
+      let sawToolCall = false;
+      let textInCurrentStep = false;
 
       for await (const chunk of result.fullStream) {
         switch (chunk.type) {
           case 'step-start':
             step += 1;
+            textInCurrentStep = false;
             onEvent({
               type: 'step-start',
               step,
@@ -229,10 +233,12 @@ export class SessionLoop {
             break;
 
           case 'text-delta':
+            textInCurrentStep = true;
             onEvent({ type: 'text-delta', delta: chunk.textDelta });
             break;
 
           case 'tool-call':
+            sawToolCall = true;
             onEvent({
               type: 'tool-call',
               id: chunk.toolCallId,
@@ -259,6 +265,7 @@ export class SessionLoop {
 
           case 'finish':
             usage = chunk.usage;
+            finishReason = chunk.finishReason;
             break;
 
           case 'error':
@@ -291,7 +298,15 @@ export class SessionLoop {
       });
 
       onEvent({ type: 'status', status: 'done' });
-      onEvent({ type: 'done' });
+      onEvent({
+        type: 'done',
+        finishReason,
+        // The model called tools but its final step was an empty 'stop' — it
+        // got the chance to summarize and produced nothing. Surfaced so the
+        // client can tell the user instead of silently ending the turn.
+        emptyAfterTools: sawToolCall && finishReason === 'stop' && !textInCurrentStep,
+        maxSteps: this.config.agent.maxIterations,
+      });
     } catch (err: unknown) {
       if (isAbortError(err)) {
         // Turn was cancelled via cancelTurn — emit cancelled, don't persist as error

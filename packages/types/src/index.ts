@@ -124,7 +124,15 @@ export type SSEEvent =
   | { type: 'session-start-disclaimer'; message: string }
   | { type: 'permission-request'; id: string; toolName: string; args: unknown }
   | { type: 'error'; message: string }
-  | { type: 'done' };
+  | {
+      type: 'done';
+      /** SDK finish reason of the final step: 'stop' | 'tool-calls' | 'length' | 'error' | ... */
+      finishReason?: string;
+      /** True when the turn ran tools but the final model step produced no text (empty stop). */
+      emptyAfterTools?: boolean;
+      /** maxSteps configured for the turn — lets the client report "max steps reached". */
+      maxSteps?: number;
+    };
 
 // ---------------------------------------------------------------------------
 // HTTP API request / response shapes
